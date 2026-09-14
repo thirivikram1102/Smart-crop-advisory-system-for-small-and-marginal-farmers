@@ -1,0 +1,6 @@
+{
+  "name": "Smart Crop Advisory System",
+  "description": "Smart Crop Advisory System for Small and Marginal Farmers with Tamil voice assistant, crop recommendation, leaf disease detection, village alerts, smart irrigation, and yield & profit prediction.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
