@@ -20,7 +20,7 @@ export async function askAssistant(
       }
     }
   } catch (err) {
-    console.warn('Backend assistant API unreachable, using local Tamil agricultural knowledge engine:', err);
+    console.log('Using local Tamil agricultural knowledge engine fallback.');
   }
 
   // Knowledge base matcher

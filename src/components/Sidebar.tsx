@@ -20,19 +20,21 @@ import {
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  isOpenMobile: boolean;
-  onCloseMobile: () => void;
-  onOpenVoiceModal: () => void;
-  onOpenAdminModal: () => void;
+  isOpenMobile?: boolean;
+  onCloseMobile?: () => void;
+  onOpenVoiceModal?: () => void;
+  onOpenAdminModal?: () => void;
+  onOpenProfileModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
-  isOpenMobile,
+  isOpenMobile = false,
   onCloseMobile,
   onOpenVoiceModal,
   onOpenAdminModal,
+  onOpenProfileModal,
 }) => {
   const { language, t } = useLanguage();
   const { unreadCount } = useAlerts();
@@ -120,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Backdrop */}
       {isOpenMobile && (
         <div
-          onClick={onCloseMobile}
+          onClick={() => onCloseMobile?.()}
           className="fixed inset-0 bg-stone-900/60 z-40 lg:hidden backdrop-blur-xs"
         />
       )}
@@ -150,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   } else {
                     setActiveTab(item.id);
                   }
-                  onCloseMobile();
+                  onCloseMobile?.();
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors text-left ${
                   isActive
@@ -184,8 +186,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-3 border-t border-stone-200 bg-stone-50">
           <button
             onClick={() => {
-              onOpenAdminModal();
-              onCloseMobile();
+              onOpenAdminModal?.();
+              onCloseMobile?.();
             }}
             className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-white hover:bg-emerald-50 text-emerald-800 text-xs font-bold rounded-lg border border-emerald-200 shadow-2xs transition-colors"
           >

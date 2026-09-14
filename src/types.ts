@@ -4,6 +4,7 @@ export interface FarmerProfile {
   id: string;
   name: string;
   mobile: string;
+  phone?: string;
   email?: string;
   state: string;
   district: string;
@@ -11,9 +12,35 @@ export interface FarmerProfile {
   farmSizeAcres: number;
   soilType: string;
   irrigationType: string;
+  irrigationSource?: string;
   mainCrops: string[];
+  mainCrop?: string;
+  currentCrop?: string;
   preferredLanguage: Language;
   createdAt: string;
+  avatarUrl?: string;
+  isVerified?: boolean;
+}
+
+export interface UserAccount {
+  id: string;
+  identifier: string; // email or 10-digit mobile
+  passwordHash: string;
+  createdAt: string;
+  profile: FarmerProfile;
+  rememberMe?: boolean;
+}
+
+export interface FarmerOnboardingData {
+  name: string;
+  mobile: string;
+  district: string;
+  village: string;
+  farmSizeAcres: number;
+  soilType: string;
+  irrigationType: string;
+  mainCrop: string;
+  preferredLanguage: Language;
 }
 
 export interface CropRecommendationInput {
