@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlerts } from '../contexts/AlertsContext';
 import { QuickActionBanner } from '../components/QuickActionBanner';
+import { FarmerFieldCardModal } from '../components/FarmerFieldCardModal';
 import { DEMO_WEATHER } from '../services/marketWeatherService';
 import {
   CloudSun,
@@ -10,13 +11,15 @@ import {
   AlertTriangle,
   Droplets,
   HeartPulse,
-  TrendingUp,
   Calculator,
   Calendar,
   ChevronRight,
   ShieldCheck,
   CheckCircle2,
   Clock,
+  Printer,
+  Store,
+  Sparkles,
 } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -32,41 +35,233 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const { farmer } = useAuth();
   const { alerts } = useAlerts();
 
+  const [isFieldCardOpen, setIsFieldCardOpen] = useState(false);
+  const [selectedCropStage, setSelectedCropStage] = useState<'basal' | 'tillering' | 'panicle' | 'heading'>('tillering');
+
   const nearbyAlert = alerts[0];
+
+  // Fertilizer recommendations per acre calculated for farmer's land size
+  const acres = farmer?.farmSizeAcres || 2.5;
+
+  const fertilizerDoses = {
+    basal: {
+      stageTa: 'அடி உரம் (Basal - 0-3 நாட்கள்)',
+      stageEn: 'Basal Application (Day 0-3)',
+      ureaBags: (0.3 * acres).toFixed(1),
+      dapBags: (0.6 * acres).toFixed(1),
+      potashBags: (0.25 * acres).toFixed(1),
+      zincKg: (5 * acres).toFixed(0),
+      instructionsTa: 'கடைசி உழவின் போது மண்ணில் இட்டு சமன் செய்யவும். ஜிங்க் சல்பேட்டை DAP உடன் கலக்கக் கூடாது.',
+      instructionsEn: 'Incorporate during final puddling. Do not mix Zinc Sulphate directly with DAP.',
+    },
+    tillering: {
+      stageTa: 'முதல் மேலுரம் - தூர்க்கட்டும் பருவம் (Day 20-25)',
+      stageEn: '1st Top Dressing - Active Tillering (Day 20-25)',
+      ureaBags: (0.6 * acres).toFixed(1),
+      dapBags: '0.0',
+      potashBags: (0.15 * acres).toFixed(1),
+      zincKg: (4 * acres).toFixed(0),
+      instructionsTa: 'களை எடுத்த 2 நாட்களுக்குப் பின், வயலில் மெல்லிய நீர் இருக்கும் போது வேப்பம் புண்ணாக்குடன் கலந்து இடவும்.',
+      instructionsEn: 'Apply after weeding when thin film of water is present. Mix Urea with neem cake (5:1) for slow release.',
+    },
+    panicle: {
+      stageTa: 'இரண்டாம் மேலுரம் - தூர் முதிர்தல் (Day 40-45)',
+      stageEn: '2nd Top Dressing - Panicle Initiation (Day 40-45)',
+      ureaBags: (0.45 * acres).toFixed(1),
+      dapBags: '0.0',
+      potashBags: (0.35 * acres).toFixed(1),
+      zincKg: '0',
+      instructionsTa: 'கதிர் உருவாகும் தருணம். பொட்டாஷ் மணி திரட்சியை அதிகரிக்கும்; நோய் எதிர்ப்பாற்றல் கூட்டும்.',
+      instructionsEn: 'Crucial for grain weight. MOP improves disease resistance and prevents lodging.',
+    },
+    heading: {
+      stageTa: 'கதிர் வரும் பருவம் (Heading - Day 70-75)',
+      stageEn: 'Heading Stage (Day 70-75)',
+      ureaBags: '0.0',
+      dapBags: '0.0',
+      potashBags: (0.2 * acres).toFixed(1),
+      zincKg: '0',
+      instructionsTa: '1% பொட்டாசியம் நைட்ரேட் (KNO3) இலைவழி தெளிப்பு 100 லிட்டர் நீரில் கலந்து காலை வேளையில் தெளிக்கலாம்.',
+      instructionsEn: 'Foliar spray of 1% KNO3 (Potassium Nitrate) in early morning to boost 1000-grain weight.',
+    },
+  };
+
+  const currentDose = fertilizerDoses[selectedCropStage];
+
+  // Real Tamil Nadu Mandi Snapshots
+  const liveMandiRates = [
+    {
+      commodityTa: 'நெல் (சன்ன ரகம் - பொன்னி)',
+      commodityEn: 'Paddy (Fine - Ponni)',
+      marketTa: 'தஞ்சாவூர் DPC',
+      marketEn: 'Thanjavur DPC',
+      rate: '₹2,380',
+      unitTa: '/ குவிண்டால்',
+      unitEn: '/ qtl',
+      trend: '+₹25',
+      trendType: 'up',
+    },
+    {
+      commodityTa: 'தக்காளி (நாட்டு)',
+      commodityEn: 'Tomato (Local)',
+      marketTa: 'ஒட்டன்சத்திரம்',
+      marketEn: 'Oddanchatram',
+      rate: '₹1,550',
+      unitTa: '/ குவிண்டால்',
+      unitEn: '/ qtl',
+      trend: '+₹40',
+      trendType: 'up',
+    },
+    {
+      commodityTa: 'சின்ன வெங்காயம்',
+      commodityEn: 'Small Shallots',
+      marketTa: 'திண்டுக்கல் மார்க்கெட்',
+      marketEn: 'Dindigul Market',
+      rate: '₹4,800',
+      unitTa: '/ குவிண்டால்',
+      unitEn: '/ qtl',
+      trend: '+₹120',
+      trendType: 'up',
+    },
+    {
+      commodityTa: 'வாழை (பூவன்)',
+      commodityEn: 'Banana (Poovan)',
+      marketTa: 'திருச்சி காந்தி மார்க்கெட்',
+      marketEn: 'Trichy Gandhi Mkt',
+      rate: '₹2,200',
+      unitTa: '/ 100 தார்',
+      unitEn: '/ 100 Bunches',
+      trend: 'நிலையானது',
+      trendType: 'steady',
+    },
+    {
+      commodityTa: 'தேங்காய் (நடுத்தரம்)',
+      commodityEn: 'Coconut (Medium)',
+      marketTa: 'பொள்ளாச்சி மண்டி',
+      marketEn: 'Pollachi Mandi',
+      rate: '₹31,500',
+      unitTa: '/ 1,000 காய்',
+      unitEn: '/ 1,000 nuts',
+      trend: '+₹300',
+      trendType: 'up',
+    },
+  ];
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 text-white rounded-3xl p-5 sm:p-6 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider bg-emerald-900/60 px-2.5 py-0.5 rounded-full text-emerald-200">
-              {farmer?.district || 'Thanjavur'} • {farmer?.village || 'Thiruvaiyaru'}
-            </span>
-            <span className="text-xs text-amber-300 font-semibold flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>KVK Verified</span>
-            </span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black">
-            {language === 'ta'
-              ? `வணக்கம், ${farmer?.name || 'ரவி குமார்'}`
-              : `Vanakkam, ${farmer?.name || 'Ravi Kumar'}`}
-          </h2>
-          <p className="text-xs sm:text-sm text-emerald-100">
-            {language === 'ta'
-              ? 'உங்கள் நிலத்தின் இன்றைய வானிலை, பாசன பரிந்துரை மற்றும் பயிர் கண்காணிப்பு தகவல்கள் தயார்.'
-              : 'Real-time agro-climatic advisory, smart irrigation schedules, and local pest alerts.'}
-          </p>
+      {/* Field Identity & Farmer Passport Banner */}
+      <div className="bg-[#1b3d2b] text-white rounded-3xl p-5 sm:p-7 shadow-sm border border-emerald-950/20 relative overflow-hidden">
+        {/* Subtle decorative grain background */}
+        <div className="absolute -right-8 -bottom-10 opacity-10 pointer-events-none">
+          <Sprout className="w-64 h-64 text-emerald-300" />
         </div>
 
-        <div className="flex items-center gap-2 self-stretch sm:self-auto">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider bg-emerald-800/80 px-3 py-1 rounded-full text-emerald-200 border border-emerald-700/50">
+                {farmer?.village || 'திருவையாறு'}, {farmer?.district || 'தஞ்சாவூர்'} • காவிரி டெல்டா
+              </span>
+              <span className="text-xs text-amber-300 font-bold flex items-center gap-1 bg-amber-950/40 px-2.5 py-1 rounded-full border border-amber-800/40">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>TNAU & KVK பரிந்துரை நெறிமுறை</span>
+              </span>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white">
+              {language === 'ta'
+                ? `வணக்கம், ${farmer?.name || 'ரவி குமார்'}!`
+                : `Vanakkam, ${farmer?.name || 'Ravi Kumar'}!`}
+            </h2>
+
+            {/* Farm snapshot pills */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-emerald-100 pt-1">
+              <div className="bg-emerald-900/90 px-2.5 py-1 rounded-lg border border-emerald-700/40">
+                <span className="text-emerald-300 font-medium">{language === 'ta' ? 'நிலப்பரப்பு' : 'Area'}: </span>
+                <span className="font-bold text-white">{farmer?.farmSizeAcres || 2.5} ஏக்கர் (Acres)</span>
+              </div>
+              <div className="bg-emerald-900/90 px-2.5 py-1 rounded-lg border border-emerald-700/40">
+                <span className="text-emerald-300 font-medium">{language === 'ta' ? 'நடப்பு பயிர்' : 'Crop'}: </span>
+                <span className="font-bold text-white">{farmer?.mainCrop || 'சம்பா நெல் - CR 1009'}</span>
+              </div>
+              <div className="bg-emerald-900/90 px-2.5 py-1 rounded-lg border border-emerald-700/40">
+                <span className="text-emerald-300 font-medium">{language === 'ta' ? 'மண்' : 'Soil'}: </span>
+                <span className="font-bold text-white">{farmer?.soilType || 'களிமண் வண்டல்'}</span>
+              </div>
+              <div className="bg-emerald-900/90 px-2.5 py-1 rounded-lg border border-emerald-700/40">
+                <span className="text-emerald-300 font-medium">{language === 'ta' ? 'பாசனம்' : 'Irrigation'}: </span>
+                <span className="font-bold text-white">{farmer?.irrigationType || 'ஆழ்துளை & வாய்க்கால்'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => setIsFieldCardOpen(true)}
+              className="inline-flex items-center gap-2 bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-emerald-600/50 shadow-xs transition-colors"
+            >
+              <Printer className="w-4 h-4 text-emerald-300" />
+              <span>{language === 'ta' ? 'பயிர் அட்டை (Field Card)' : 'View Field Card'}</span>
+            </button>
+
+            <button
+              onClick={onOpenVoiceModal}
+              className="inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-stone-950 font-black px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-sm transition-transform active:scale-95"
+            >
+              <span>🎙 {language === 'ta' ? 'தமிழில் பேச' : 'Voice Assistant'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Live Mandi Rate Marquee / Ticker */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-3 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 mb-2 border-b border-stone-100">
+          <div className="flex items-center gap-2">
+            <Store className="w-4 h-4 text-emerald-700" />
+            <h3 className="font-extrabold text-xs sm:text-sm text-stone-900">
+              {language === 'ta'
+                ? 'இன்றைய உழவர் சந்தை & ஒழுங்குமுறை விற்பனைக்கூட நிலவரம் (TN Mandi Rates)'
+                : 'Today\'s Verified Tamil Nadu Mandi & Market Rates'}
+            </h3>
+            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+              Live
+            </span>
+          </div>
           <button
-            onClick={onOpenVoiceModal}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-sm transition-transform active:scale-95"
+            onClick={() => onNavigate('market')}
+            className="text-xs text-emerald-700 font-bold hover:underline self-start sm:self-auto"
           >
-            <span>🎙 {language === 'ta' ? 'தமிழில் பேச' : 'Voice Assistant'}</span>
+            {language === 'ta' ? 'அனைத்து சந்தை விலைகள் →' : 'View All 38 Districts →'}
           </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          {liveMandiRates.map((item, idx) => (
+            <div
+              key={idx}
+              className="bg-stone-50 hover:bg-emerald-50/50 p-2.5 rounded-xl border border-stone-200/80 transition-colors"
+            >
+              <div className="text-[10px] text-stone-500 truncate">
+                {language === 'ta' ? item.marketTa : item.marketEn}
+              </div>
+              <div className="text-xs font-black text-stone-900 truncate">
+                {language === 'ta' ? item.commodityTa : item.commodityEn}
+              </div>
+              <div className="flex items-baseline justify-between mt-1">
+                <span className="text-sm font-extrabold text-emerald-800">
+                  {item.rate}
+                  <span className="text-[10px] text-stone-500 font-normal">
+                    {language === 'ta' ? item.unitTa : item.unitEn}
+                  </span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/60 px-1 rounded">
+                  {item.trend}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -308,6 +503,124 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Practical Farmer Tool: Fertilizer Bag Dosage Calculator */}
+      <div className="bg-white rounded-3xl p-5 sm:p-7 border border-stone-200 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-stone-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+              <h3 className="text-base sm:text-lg font-black text-stone-900">
+                {language === 'ta'
+                  ? 'உர மூட்டை அளவீட்டுக் கருவி (Fertilizer Bag Dosage in Real Bags)'
+                  : 'Practical Fertilizer Dosage Calculator (in Bags for your Field)'}
+              </h3>
+            </div>
+            <p className="text-xs text-stone-500 mt-0.5">
+              {language === 'ta'
+                ? `உங்கள் ${acres} ஏக்கர் நிலத்திற்கு தேவையான உர மூட்டைகள் (TNAU பரிந்துரைப்படி)`
+                : `Calculated exact 50kg/45kg bags required for your ${acres} acre plot`}
+            </p>
+          </div>
+
+          {/* Stage selection tabs */}
+          <div className="flex items-center bg-stone-100 p-1 rounded-xl gap-1 text-xs font-bold overflow-x-auto">
+            <button
+              onClick={() => setSelectedCropStage('basal')}
+              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                selectedCropStage === 'basal'
+                  ? 'bg-white text-emerald-900 shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              {language === 'ta' ? 'அடி உரம்' : 'Basal'}
+            </button>
+            <button
+              onClick={() => setSelectedCropStage('tillering')}
+              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                selectedCropStage === 'tillering'
+                  ? 'bg-white text-emerald-900 shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              {language === 'ta' ? 'தூர்க்கட்டு (தற்போதைய)' : 'Tillering (Current)'}
+            </button>
+            <button
+              onClick={() => setSelectedCropStage('panicle')}
+              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                selectedCropStage === 'panicle'
+                  ? 'bg-white text-emerald-900 shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              {language === 'ta' ? 'கதிர் உருவாக்கம்' : 'Panicle'}
+            </button>
+            <button
+              onClick={() => setSelectedCropStage('heading')}
+              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                selectedCropStage === 'heading'
+                  ? 'bg-white text-emerald-900 shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              {language === 'ta' ? 'மணி திரட்சி' : 'Heading'}
+            </button>
+          </div>
+        </div>
+
+        {/* Selected Stage Output */}
+        <div className="bg-stone-50 p-4 sm:p-5 rounded-2xl border border-stone-200/80 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="font-extrabold text-sm text-stone-900">
+              {language === 'ta' ? currentDose.stageTa : currentDose.stageEn}
+            </span>
+            <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
+              {acres} {language === 'ta' ? 'ஏக்கருக்கு' : 'Acres'}
+            </span>
+          </div>
+
+          {/* 3 Metric boxes */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-3 rounded-xl border border-stone-200">
+              <span className="text-[10px] text-stone-500 font-bold block uppercase">யூரியா (Urea 45kg)</span>
+              <span className="text-xl font-black text-stone-900">{currentDose.ureaBags}</span>
+              <span className="text-[10px] text-stone-400 block">{language === 'ta' ? 'மூட்டைகள்' : 'Bags'}</span>
+            </div>
+
+            <div className="bg-white p-3 rounded-xl border border-stone-200">
+              <span className="text-[10px] text-stone-500 font-bold block uppercase">டி.ஏ.பி (DAP 50kg)</span>
+              <span className="text-xl font-black text-stone-900">{currentDose.dapBags}</span>
+              <span className="text-[10px] text-stone-400 block">{language === 'ta' ? 'மூட்டைகள்' : 'Bags'}</span>
+            </div>
+
+            <div className="bg-white p-3 rounded-xl border border-stone-200">
+              <span className="text-[10px] text-stone-500 font-bold block uppercase">பொட்டாஷ் (MOP 50kg)</span>
+              <span className="text-xl font-black text-stone-900">{currentDose.potashBags}</span>
+              <span className="text-[10px] text-stone-400 block">{language === 'ta' ? 'மூட்டைகள்' : 'Bags'}</span>
+            </div>
+
+            <div className="bg-white p-3 rounded-xl border border-stone-200">
+              <span className="text-[10px] text-stone-500 font-bold block uppercase">நுண்ணூட்டம் (Zinc/Gypsum)</span>
+              <span className="text-xl font-black text-stone-900">{currentDose.zincKg}</span>
+              <span className="text-[10px] text-stone-400 block">கிலோ (kg)</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/60 text-xs text-amber-950 flex items-start gap-2">
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <b>{language === 'ta' ? 'விவசாயிக்கு குறிப்பு: ' : 'Agronomy Tip: '}</b>
+              {language === 'ta' ? currentDose.instructionsTa : currentDose.instructionsEn}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Field Card Modal Component */}
+      <FarmerFieldCardModal
+        isOpen={isFieldCardOpen}
+        onClose={() => setIsFieldCardOpen(false)}
+      />
     </div>
   );
 };

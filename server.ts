@@ -357,19 +357,55 @@ app.post(['/api/alerts', '/api/disease/alerts'], (req, res) => {
   res.json({ success: true, alert });
 });
 
-// --- 6. Tamil Voice Assistant API ---
+// Helper function to detect language (Tamil vs English)
+function detectInputLanguage(text: string): 'ta' | 'en' {
+  if (!text || !text.trim()) return 'ta';
+  // Check for Tamil Unicode characters
+  if (/[\u0B80-\u0BFF]/.test(text)) {
+    return 'ta';
+  }
+  // Tanglish agrarian terms check
+  const tanglish = [
+    'vanakkam', 'ulavan', 'uzhavan', 'vivasayi', 'vivasayam', 'nel', 'nellu',
+    'payir', 'poochi', 'ilai', 'karukal', 'thanni', 'thannir', 'pasanam',
+    'uravalam', 'kaviri', 'thanjavur', 'samba', 'kuruvai', 'manila', 'urundai',
+    'uzhavar', 'thotam', 'eppadi', 'ennathu', 'vilai', 'mandi', 'sandhai', 'marunthu',
+    'eruvam', 'puzhu', 'veppam', 'nalla', 'vilayuma', 'epo', 'paaikalam', 'solunga'
+  ];
+  const words = text.toLowerCase().split(/[\s,?.!;:—]+/).filter(Boolean);
+  if (words.some((w) => tanglish.includes(w))) {
+    return 'ta';
+  }
+  return 'en';
+}
+
+// --- 6. Smart Tamil & English Voice Assistant API with Auto Language Detection ---
 app.post('/api/assistant/query', async (req, res) => {
-  const { prompt } = req.body || {};
+  const { prompt, lang } = req.body || {};
+  const detectedLanguage = (lang === 'ta' || lang === 'en') ? lang : detectInputLanguage(prompt || '');
   const ai = getAi();
 
   if (ai && prompt) {
     try {
       const systemInstruction = `You are "உழவன் தோழன் (Farmer's Friend)", an expert South Indian agricultural advisor for small and marginal farmers in Tamil Nadu.
-Respond with clear, practical, actionable agricultural advice.
-Return a STRICT JSON response:
+The farmer is asking: "${prompt}".
+CRITICAL DIRECTIVE:
+1. Automatically verify the user's language.
+2. If the user asks in Tamil (Tamil script, Tanglish, or Tamil terminology):
+   - You MUST respond COMPLETELY in natural, warm, conversational Tamil without unnecessary English technical jargon.
+   - Set "detectedLanguage": "ta".
+   - "reply" MUST be completely in Tamil.
+3. If the user asks in English:
+   - You MUST respond COMPLETELY in clear, practical, direct English.
+   - Set "detectedLanguage": "en".
+   - "reply" MUST be completely in English.
+4. Return a STRICT JSON response:
 {
-  "textEn": "Concise answer in English (2-3 sentences)",
-  "textTa": "எளிமையான தமிழ் மொழியில் விவசாயிக்கு புரியும் பதில் (2-3 வாக்கியங்கள்)"
+  "detectedLanguage": "ta" | "en",
+  "reply": "Complete primary response in the detected language (2-4 sentences with actionable advice)",
+  "replyTa": "Complete natural Tamil version for Tamil Nadu farmers",
+  "replyEn": "Complete clear English version",
+  "topic": "crop" | "disease" | "fertilizer" | "irrigation" | "market" | "profit" | "general"
 }`;
 
       const response = await generateGeminiWithFallback(ai, {
@@ -382,7 +418,18 @@ Return a STRICT JSON response:
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        return res.json(parsed);
+        // Guarantee detected language & reply fields
+        const finalLang = parsed.detectedLanguage || detectedLanguage;
+        const reply = parsed.reply || (finalLang === 'ta' ? parsed.replyTa : parsed.replyEn);
+        return res.json({
+          detectedLanguage: finalLang,
+          reply,
+          replyTa: parsed.replyTa || reply,
+          replyEn: parsed.replyEn || reply,
+          topic: parsed.topic || 'general',
+          textEn: parsed.replyEn || reply,
+          textTa: parsed.replyTa || reply,
+        });
       }
     } catch (e: any) {
       console.log('Gemini assistant notice:', e?.message || 'Using agricultural expert rule base');
@@ -391,27 +438,43 @@ Return a STRICT JSON response:
 
   // Comprehensive Agricultural Expert Knowledge Base (TNAU & KVK based)
   const q = (prompt || '').toLowerCase();
-  let textEn = `For "${prompt}": Maintain proper drainage in your fields, monitor leaf undersides for sucking pests, and apply split doses of fertilizers as per TNAU crop schedule.`;
-  let textTa = `உங்கள் கேள்வி தொடர்பாக: வயலில் நீர் தேங்காமல் சீரான வடிகால் அமைக்கவும், இலைகளின் அடிப்பகுதியில் பூச்சி உள்ளதா என கவனிக்கவும். தமிழ்நாடு வேளாண் பல்கலைக்கழக வழிகாட்டுதல்படி உரமிடவும்.`;
+  let topic = 'general';
+  let replyTa = `உங்கள் கேள்வி தொடர்பாக: வயலில் நீர் தேங்காமல் சீரான வடிகால் அமைக்கவும், இலைகளின் அடிப்பகுதியில் பூச்சி உள்ளதா என கவனிக்கவும். தமிழ்நாடு வேளாண் பல்கலைக்கழக (TNAU) வழிகாட்டுதல்படி உரமிடவும்.`;
+  let replyEn = `For "${prompt}": Maintain proper field drainage, inspect leaf undersides for pests, and apply split doses of fertilizers according to TNAU crop schedules.`;
 
-  if (q.includes('பயிர்') || q.includes('crop') || q.includes('விளைச்சல்') || q.includes('yield') || q.includes('சாகுபடி')) {
-    textEn = `For Tamil Nadu delta & drylands, Samba Paddy (CR 1009/Ponni), Blackgram (VBN 8), or Groundnut (TMV 14) provide the best risk-adjusted profit per acre with moderate water needs.`;
-    textTa = `தற்போதைய பருவத்திற்கு சம்பா நெல் (CR 1009 / பொன்னி) அல்லது வம்பன் 8 உளுந்து சாகுபடி செய்வது குறைந்த செலவில் அதிக லாபகரமான மகசூலைத் தரும்.`;
-  } else if (q.includes('பூச்சி') || q.includes('புகையான்') || q.includes('pest') || q.includes('bph') || q.includes('இலைசுருட்டு') || q.includes('இலை')) {
-    textEn = `For pest outbreak: Drain field standing water for 2-3 days, set up yellow sticky traps or light traps, and spray Neem Seed Kernel Extract (NSKE 5%) or Azadirachtin.`;
-    textTa = `பூச்சி அல்லது புகையான் தாக்குதலைக் கட்டுப்படுத்த வயல் நீரை 2 நாட்கள் வடிக்கவும். ஏக்கருக்கு 1 விளக்கு பொறி அமைத்து, 5% வேப்பெண்ணெய் கரைசல் அல்லது பேசிலஸ் துரிஞ்சியென்சிஸ் தெளிக்கவும்.`;
-  } else if (q.includes('உரம்') || q.includes('fertilizer') || q.includes('யூரியா') || q.includes('urea') || q.includes('டிஏபி') || q.includes('பொட்டாஷ்')) {
-    textEn = `Broadcast neem-coated urea in 4 splits: 25% basal, 25% at tillering (20-25 days), 25% at panicle initiation, and 25% at heading stage. Avoid excessive single doses.`;
-    textTa = `யூரியாவை மொத்தமாக இடாமல் 4 சம தவணைகளாக இடவும் (அடியுரம், தூர் கட்டும் பருவம், கதிர் உருவாகும் தருணம் மற்றும் பூக்கும் பருவம்). எப்போதும் மழைக் காலத்தில் உரம் தெளிக்காதீர்கள்.`;
-  } else if (q.includes('நீர்') || q.includes('பாசனம்') || q.includes('water') || q.includes('irrigation') || q.includes('தண்ணீர்')) {
-    textEn = `Implement Alternate Wetting and Drying (AWD) with perforated PVC field tubes. Irrigate to 5cm only when water drops 15cm below soil surface to save 30% water.`;
-    textTa = `காய்ச்சலும் பாய்ச்சலுமாக (AWD) பாசனம் செய்யுங்கள். வயல் நீர்மானிக் குழாயில் நீர்மட்டம் 15 செ.மீ குறையும் போது மட்டும் அடுத்த முறை 5 செ.மீ அளவுக்கு நீர் பாய்ச்சினால் 30% நீர் மிச்சமாகும்.`;
-  } else if (q.includes('விலை') || q.includes('market') || q.includes('price') || q.includes('மண்டி') || q.includes('விற்பனை')) {
-    textEn = `Paddy Grade A is trading near ₹2,380 - ₹2,450/quintal in regulated mandis with steady festive demand. Ensure grain moisture is below 17% for direct procurement center bonus.`;
-    textTa = `ஒழுங்குமுறை விற்பனைக்கூடங்களில் முதல் ரக நெல் குவிண்டாலுக்கு சுமார் ₹2,380 - ₹2,450 வரை விலை போகிறது. நேரடி நெல் கொள்முதல் நிலைய போனஸ் பெற ஈரப்பதம் 17% க்குள் இருக்குமாறு உலர்த்தவும்.`;
+  if (q.includes('பயிர்') || q.includes('crop') || q.includes('விளைச்சல்') || q.includes('yield') || q.includes('சாகுபடி') || q.includes('variety')) {
+    topic = 'crop';
+    replyTa = `தற்போதைய பருவத்திற்கு சம்பா நெல் (CR 1009 / பொன்னி) அல்லது வம்பன் 8 உளுந்து சாகுபடி செய்வது குறைந்த செலவில் அதிக லாபகரமான மகசூலைத் தரும். வண்டல் மற்றும் களிமண் நிலத்திற்கு ஏற்றது.`;
+    replyEn = `For Tamil Nadu delta and dryland regions, Samba Paddy (CR 1009/Ponni) or Blackgram (VBN 8) provide the best risk-adjusted profit per acre with moderate water needs.`;
+  } else if (q.includes('பூச்சி') || q.includes('புகையான்') || q.includes('pest') || q.includes('bph') || q.includes('இலைசுருட்டு') || q.includes('இலை') || q.includes('நோய்') || q.includes('blight')) {
+    topic = 'disease';
+    replyTa = `பூச்சி அல்லது புகையான் தாக்குதலைக் கட்டுப்படுத்த வயல் நீரை 2 நாட்கள் வடிக்கவும். ஏக்கருக்கு 1 விளக்கு பொறி அமைத்து, 5% வேப்பெண்ணெய் கரைசல் அல்லது சூடோமோனாஸ் தெளிக்கவும்.`;
+    replyEn = `For pest and leaf blight outbreaks: Drain standing field water for 2-3 days, set up yellow sticky traps or light traps, and spray Neem Seed Kernel Extract (NSKE 5%) or Pseudomonas fluorescens.`;
+  } else if (q.includes('உரம்') || q.includes('fertilizer') || q.includes('யூரியா') || q.includes('urea') || q.includes('டிஏபி') || q.includes('பொட்டாஷ்') || q.includes('manure')) {
+    topic = 'fertilizer';
+    replyTa = `யூரியாவை மொத்தமாக இடாமல் 3 அல்லது 4 சம தவணைகளாக இடவும் (அடியுரம், தூர் கட்டும் பருவம் 25-30 நாட்கள், கதிர் உருவாகும் தருணம்). எப்போதும் மழைக் காலத்தில் உரம் தெளிக்காதீர்கள்.`;
+    replyEn = `Broadcast neem-coated urea in divided splits: 25% basal, 50% at tillering (25-30 days), and 25% at panicle initiation. Avoid applying before impending rains.`;
+  } else if (q.includes('நீர்') || q.includes('பாசனம்') || q.includes('water') || q.includes('irrigation') || q.includes('தண்ணீர்') || q.includes('மழை') || q.includes('rain')) {
+    topic = 'irrigation';
+    replyTa = `காய்ச்சலும் பாய்ச்சலுமாக (AWD) பாசனம் செய்யுங்கள். அடுத்த 48 மணி நேரத்தில் மழை பெய்ய வாய்ப்புள்ளதால் இன்று நீர் பாய்ச்சுவதை ஒத்திவைக்கவும். இதனால் 30% நீர் மிச்சமாகும்.`;
+    replyEn = `Implement Alternate Wetting and Drying (AWD) with perforated PVC tubes. Soil moisture is adequate and rain is forecasted, so postpone immediate flood irrigation to conserve water.`;
+  } else if (q.includes('விலை') || q.includes('market') || q.includes('price') || q.includes('மண்டி') || q.includes('விற்பனை') || q.includes('rate')) {
+    topic = 'market';
+    replyTa = `ஒழுங்குமுறை விற்பனைக்கூடங்களில் முதல் ரக சன்ன நெல் குவிண்டாலுக்கு சுமார் ₹2,380 முதல் ₹2,450 வரை விலை போகிறது. நேரடி நெல் கொள்முதல் நிலைய போனஸ் பெற ஈரப்பதம் 17% க்குள் இருக்குமாறு உலர்த்தவும்.`;
+    replyEn = `Paddy Grade A is trading near ₹2,380 - ₹2,450 per quintal in regulated mandis with steady seasonal demand. Ensure harvested moisture is below 17% for direct procurement bonus.`;
   }
 
-  res.json({ textEn, textTa });
+  const primaryReply = detectedLanguage === 'ta' ? replyTa : replyEn;
+
+  res.json({
+    detectedLanguage,
+    reply: primaryReply,
+    replyTa,
+    replyEn,
+    topic,
+    textEn: replyEn,
+    textTa: replyTa,
+  });
 });
 
 // --- 7. Static / Vite Middleware Setup ---

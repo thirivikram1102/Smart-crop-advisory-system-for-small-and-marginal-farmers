@@ -55,23 +55,23 @@ export const WeatherPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 text-xs">
-            <div className="bg-stone-50 p-3 rounded-xl text-center">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 text-xs w-full sm:w-auto">
+            <div className="bg-stone-50 p-2 sm:p-3 rounded-xl text-center">
               <Droplets className="w-4 h-4 text-cyan-600 mx-auto mb-1" />
-              <div className="text-[10px] text-stone-400 font-bold">{t.weather.humidity}</div>
-              <div className="text-sm font-black text-stone-900">{DEMO_WEATHER.humidityPct}%</div>
+              <div className="text-[9px] sm:text-[10px] text-stone-400 font-bold truncate">{t.weather.humidity}</div>
+              <div className="text-xs sm:text-sm font-black text-stone-900">{DEMO_WEATHER.humidityPct}%</div>
             </div>
 
-            <div className="bg-stone-50 p-3 rounded-xl text-center">
+            <div className="bg-stone-50 p-2 sm:p-3 rounded-xl text-center">
               <CloudRain className="w-4 h-4 text-amber-500 mx-auto mb-1" />
-              <div className="text-[10px] text-stone-400 font-bold">{t.weather.rainChance}</div>
-              <div className="text-sm font-black text-amber-600">{DEMO_WEATHER.rainProbabilityPct}%</div>
+              <div className="text-[9px] sm:text-[10px] text-stone-400 font-bold truncate">{t.weather.rainChance}</div>
+              <div className="text-xs sm:text-sm font-black text-amber-600">{DEMO_WEATHER.rainProbabilityPct}%</div>
             </div>
 
-            <div className="bg-stone-50 p-3 rounded-xl text-center">
+            <div className="bg-stone-50 p-2 sm:p-3 rounded-xl text-center">
               <Wind className="w-4 h-4 text-stone-500 mx-auto mb-1" />
-              <div className="text-[10px] text-stone-400 font-bold">{t.weather.windSpeed}</div>
-              <div className="text-sm font-black text-stone-900">{DEMO_WEATHER.windSpeedKmh} km/h</div>
+              <div className="text-[9px] sm:text-[10px] text-stone-400 font-bold truncate">{t.weather.windSpeed}</div>
+              <div className="text-xs sm:text-sm font-black text-stone-900">{DEMO_WEATHER.windSpeedKmh} km/h</div>
             </div>
           </div>
         </div>

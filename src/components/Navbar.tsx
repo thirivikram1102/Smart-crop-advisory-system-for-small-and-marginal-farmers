@@ -49,30 +49,30 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-emerald-900 text-white shadow-md">
       {/* Top emergency outbreak ticker */}
-      <div className="bg-amber-500 text-stone-950 px-4 py-1 text-xs font-semibold flex items-center justify-between overflow-hidden">
-        <div className="flex items-center gap-2 truncate">
+      <div className="bg-amber-500 text-stone-950 px-2.5 sm:px-4 py-1 text-[11px] sm:text-xs font-semibold flex items-center justify-between overflow-hidden gap-2">
+        <div className="flex items-center gap-1.5 truncate min-w-0">
           <AlertTriangle className="w-3.5 h-3.5 text-stone-950 shrink-0" />
           <span className="truncate">
             {language === 'ta'
-              ? 'எச்சரிக்கை: தஞ்சாவூர் மற்றும் திண்டுக்கல் மாவட்டங்களில் புகையான் & இலை சுருட்டு வைரஸ் பரவல் கண்காணிக்கப்படுகிறது.'
-              : 'Alert: Active pest surveillance in Thanjavur & Dindigul for BPH and Leaf Curl Virus.'}
+              ? 'எச்சரிக்கை: புகையான் & இலை சுருட்டு வைரஸ் பரவல் தீவிர கண்காணிப்பு.'
+              : 'Alert: Active surveillance for BPH & Leaf Curl Virus.'}
           </span>
         </div>
         <button
           onClick={() => setActiveTab('alerts')}
-          className="ml-2 underline hover:text-stone-800 shrink-0 text-xs font-bold"
+          className="underline hover:text-stone-800 shrink-0 font-bold whitespace-nowrap text-[11px]"
         >
-          {language === 'ta' ? 'விவரம் காண்க →' : 'View Alerts →'}
+          {language === 'ta' ? 'விவரம் →' : 'Alerts →'}
         </button>
       </div>
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-15 sm:h-16 gap-1 sm:gap-3">
           {/* Left: Mobile hamburger + App Branding */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             <button
               onClick={onToggleMobileSidebar}
-              className="lg:hidden p-2 rounded-lg bg-emerald-800 text-white hover:bg-emerald-700"
+              className="lg:hidden min-w-[42px] min-h-[42px] sm:min-w-[44px] sm:min-h-[44px] flex items-center justify-center rounded-xl bg-emerald-800 text-white hover:bg-emerald-700 shrink-0"
               aria-label="Toggle menu"
             >
               {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -80,29 +80,29 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab(isAuthenticated ? 'dashboard' : 'landing')}
-              className="flex items-center gap-2.5 text-left group"
+              className="flex items-center gap-2 text-left group min-w-0"
             >
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-emerald-100 flex items-center justify-center shadow-inner group-hover:bg-emerald-500 transition-colors">
-                <Sprout className="w-6 h-6 text-white" />
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 text-emerald-100 flex items-center justify-center shadow-inner group-hover:bg-emerald-500 transition-colors shrink-0">
+                <Sprout className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-base sm:text-lg tracking-tight text-white leading-tight">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="font-extrabold text-sm sm:text-base md:text-lg tracking-tight text-white leading-tight truncate">
                     {language === 'ta' ? 'உழவன் வழிகாட்டி' : 'Smart Crop Advisory'}
                   </span>
-                  <span className="hidden sm:inline-block text-[10px] uppercase font-bold bg-emerald-700 text-emerald-200 px-1.5 py-0.5 rounded">
+                  <span className="hidden md:inline-block text-[9px] uppercase font-bold bg-emerald-700 text-emerald-200 px-1 py-0.5 rounded">
                     TN Agri
                   </span>
                 </div>
-                <p className="text-[11px] text-emerald-200 truncate max-w-[200px] sm:max-w-xs leading-none">
-                  {language === 'ta' ? 'சிறு மற்றும் குறு விவசாயிகளுக்கான சேவை' : 'For Small & Marginal Farmers'}
+                <p className="text-[10px] text-emerald-200 truncate hidden xs:block sm:block leading-none mt-0.5">
+                  {language === 'ta' ? 'விவசாயிகளுக்கான வழிகாட்டி' : 'For Small & Marginal Farmers'}
                 </p>
               </div>
             </button>
           </div>
 
           {/* Center/Right quick tools */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Weather pill */}
             {farmer && (
               <button
@@ -119,21 +119,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Tamil Voice Assistant Button */}
             <button
               onClick={onOpenVoiceModal}
-              className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold px-3 py-1.5 rounded-xl text-xs sm:text-sm shadow-sm transition-all hover:scale-105 active:scale-95 animate-voice-pulse"
-              title="Tamil Voice Assistant"
+              className="flex items-center gap-1 sm:gap-1.5 bg-amber-400 hover:bg-amber-300 text-stone-950 font-black px-2.5 sm:px-3 py-1.5 rounded-xl text-xs shadow-sm transition-all hover:scale-105 active:scale-95 animate-voice-pulse min-h-[40px]"
+              title="Tamil & English Voice Assistant"
+              aria-label="Voice Assistant"
             >
-              <Mic className="w-4 h-4 text-stone-950" />
-              <span>{language === 'ta' ? 'பேசுங்கள்' : 'Speak (Tamil)'}</span>
+              <Mic className="w-4 h-4 text-stone-950 shrink-0" />
+              <span className="whitespace-nowrap">
+                {language === 'ta' ? 'பேச' : 'Voice'}
+              </span>
             </button>
 
             {/* Language Switcher */}
             <button
               onClick={() => setLanguage(language === 'ta' ? 'en' : 'ta')}
-              className="flex items-center gap-1 bg-emerald-800 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-emerald-700"
+              className="flex items-center gap-1 bg-emerald-800 hover:bg-emerald-700 text-white px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-bold border border-emerald-700 min-h-[40px]"
               title="Switch Language"
+              aria-label="Switch Language"
             >
-              <Globe className="w-3.5 h-3.5 text-emerald-300" />
-              <span>{language === 'ta' ? 'English' : 'தமிழ்'}</span>
+              <Globe className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+              <span className="text-[11px] sm:text-xs">{language === 'ta' ? 'EN' : 'தமிழ்'}</span>
             </button>
 
             {/* Notification Center Bell (only for authenticated users or show default notifications) */}

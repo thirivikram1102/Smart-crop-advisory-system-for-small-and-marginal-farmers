@@ -39,14 +39,16 @@ export const MarketPage: React.FC = () => {
       </div>
 
       {/* Filter and Agmarknet Notice */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-emerald-600" />
-          <span className="text-xs font-bold text-stone-700">{t.cropRec.district}:</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-stone-200 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="text-xs font-bold text-stone-700 whitespace-nowrap">{t.cropRec.district}:</span>
+          </div>
           <select
             value={selectedDistrict}
             onChange={(e) => setSelectedDistrict(e.target.value)}
-            className="text-xs font-medium p-2 rounded-xl border border-stone-300 bg-white focus:ring-2 focus:ring-emerald-600"
+            className="text-xs font-medium p-2.5 rounded-xl border border-stone-300 bg-white focus:ring-2 focus:ring-emerald-600 w-full sm:w-auto"
           >
             <option value="All">All Tamil Nadu Markets (அனைத்து சந்தைகள்)</option>
             <option value="Thanjavur">Thanjavur (தஞ்சாவூர்)</option>

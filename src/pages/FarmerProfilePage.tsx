@@ -224,9 +224,9 @@ export const FarmerProfilePage: React.FC<FarmerProfilePageProps> = ({ onNavigate
 
       {/* Edit Form Card */}
       <form onSubmit={handleSave} className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+        <div className="p-4 sm:p-6 border-b border-stone-100 bg-stone-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
               <Tractor className="w-4 h-4" />
             </div>
             <div>
@@ -243,7 +243,7 @@ export const FarmerProfilePage: React.FC<FarmerProfilePageProps> = ({ onNavigate
 
           <button
             type="submit"
-            className="inline-flex items-center gap-2 py-2 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors min-h-[44px]"
           >
             <Save className="w-3.5 h-3.5" />
             <span>{language === 'ta' ? 'சேமிக்கவும்' : 'Save Changes'}</span>

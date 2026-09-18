@@ -83,12 +83,19 @@ export interface AuthSession {
   expiresAt: number;
 }
 
+const EXPLICIT_LOGOUT_KEY = 'smart_crop_explicit_logout_v2';
+
 export const authService = {
   /**
    * Get currently active session from localStorage (remember-me) or sessionStorage
    */
   getCurrentSession(): AuthSession | null {
     try {
+      // If user explicitly clicked logout, respect it
+      if (sessionStorage.getItem(EXPLICIT_LOGOUT_KEY) === 'true') {
+        return null;
+      }
+
       // Check localStorage first
       const persistent = localStorage.getItem(SESSION_STORAGE_KEY);
       if (persistent) {
@@ -110,6 +117,18 @@ export const authService = {
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
         }
       }
+
+      // If no session exists yet, default to active demo farmer session so the app is instantly usable
+      const defaultSession: AuthSession = {
+        userId: DEFAULT_DEMO_ACCOUNT.id,
+        identifier: DEFAULT_DEMO_ACCOUNT.identifier,
+        rememberMe: true,
+        token: 'demo_token_' + Date.now(),
+        profile: DEFAULT_DEMO_FARMER,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+      };
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(defaultSession));
+      return defaultSession;
     } catch (e) {
       console.error('Error retrieving session:', e);
     }
@@ -120,6 +139,7 @@ export const authService = {
    * Store session
    */
   setSession(session: AuthSession) {
+    sessionStorage.removeItem(EXPLICIT_LOGOUT_KEY);
     const serialized = JSON.stringify(session);
     if (session.rememberMe) {
       localStorage.setItem(SESSION_STORAGE_KEY, serialized);
@@ -134,6 +154,7 @@ export const authService = {
    * Clear session
    */
   clearSession() {
+    sessionStorage.setItem(EXPLICIT_LOGOUT_KEY, 'true');
     localStorage.removeItem(SESSION_STORAGE_KEY);
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     sessionStorage.removeItem(PENDING_ONBOARDING_KEY);
