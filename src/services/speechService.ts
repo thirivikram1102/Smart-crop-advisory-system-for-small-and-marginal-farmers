@@ -54,6 +54,9 @@ export class SpeechService {
   private synth: SpeechSynthesis | null = null;
   private cachedVoices: SpeechSynthesisVoice[] = [];
   private currentLanguageMode: 'auto' | 'ta' | 'en' = 'auto';
+  private currentAudioElement: HTMLAudioElement | null = null;
+  private isAudioPlaying = false;
+  private memoryAudioCache = new Map<string, { audioBase64: string; mimeType: string }>();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -100,7 +103,11 @@ export class SpeechService {
   }
 
   public isSynthesisSupported(): boolean {
-    return !!this.synth;
+    return !!this.synth || typeof Audio !== 'undefined';
+  }
+
+  public isSpeaking(): boolean {
+    return this.isAudioPlaying || (!!this.synth && this.synth.speaking);
   }
 
   public getAvailableVoices(): SpeechSynthesisVoice[] {
@@ -210,25 +217,121 @@ export class SpeechService {
   }
 
   /**
-   * Speak text in either Tamil or English with proper voice selection.
+   * Play base64 audio directly via HTML5 Audio element
    */
-  public speak(
+  public playAudioData(
+    audioBase64: string,
+    mimeType = 'audio/wav',
+    onComplete?: () => void
+  ): boolean {
+    this.stopSpeaking();
+
+    try {
+      const audioUrl = `data:${mimeType};base64,${audioBase64}`;
+      const audio = new Audio(audioUrl);
+      this.currentAudioElement = audio;
+      this.isAudioPlaying = true;
+
+      audio.onended = () => {
+        this.isAudioPlaying = false;
+        this.currentAudioElement = null;
+        if (onComplete) onComplete();
+      };
+
+      audio.onerror = (e) => {
+        console.warn('Audio playback notice:', e);
+        this.isAudioPlaying = false;
+        this.currentAudioElement = null;
+        if (onComplete) onComplete();
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Audio play notice (user interaction required):', err);
+          this.isAudioPlaying = false;
+          this.currentAudioElement = null;
+          if (onComplete) onComplete();
+        });
+      }
+      return true;
+    } catch (err) {
+      console.warn('Failed to initialize Audio element:', err);
+      this.isAudioPlaying = false;
+      this.currentAudioElement = null;
+      if (onComplete) onComplete();
+      return false;
+    }
+  }
+
+  /**
+   * Speak text in natural Tamil or English.
+   * If direct audio base64 is provided or Tamil is requested, uses high-fidelity Tamil TTS audio.
+   * Falls back smoothly to browser Web Speech API synthesis if needed.
+   */
+  public async speak(
     text: string,
     requestedLang?: 'auto' | 'ta' | 'en',
-    onComplete?: () => void
-  ): void {
-    if (!this.synth) {
+    onComplete?: () => void,
+    directAudioBase64?: string,
+    mimeType = 'audio/wav'
+  ): Promise<void> {
+    if (!text || !text.trim()) {
       if (onComplete) onComplete();
       return;
     }
 
     this.stopSpeaking();
 
+    // 1. If direct pre-generated audio is supplied, play it immediately!
+    if (directAudioBase64) {
+      this.playAudioData(directAudioBase64, mimeType, onComplete);
+      return;
+    }
+
     // Determine target spoken language
     const lang =
       !requestedLang || requestedLang === 'auto'
         ? detectLanguage(text)
         : requestedLang;
+
+    // 2. For Tamil language: request high-quality spoken Tamil audio via /api/tts
+    if (lang === 'ta') {
+      const cleanKey = text.trim();
+      const cached = this.memoryAudioCache.get(cleanKey);
+      if (cached) {
+        this.playAudioData(cached.audioBase64, cached.mimeType, onComplete);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, lang: 'ta' }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.success && data.audioBase64) {
+            this.memoryAudioCache.set(cleanKey, {
+              audioBase64: data.audioBase64,
+              mimeType: data.mimeType || 'audio/wav',
+            });
+            this.playAudioData(data.audioBase64, data.mimeType || 'audio/wav', onComplete);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Server TTS fetch notice, using browser speech synthesis:', e);
+      }
+    }
+
+    // 3. Fallback: Browser Web Speech API SpeechSynthesis
+    if (!this.synth) {
+      if (onComplete) onComplete();
+      return;
+    }
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang === 'ta' ? 'ta-IN' : 'en-IN';
@@ -282,6 +385,17 @@ export class SpeechService {
   }
 
   public stopSpeaking(): void {
+    if (this.currentAudioElement) {
+      try {
+        this.currentAudioElement.pause();
+        this.currentAudioElement.currentTime = 0;
+        this.currentAudioElement = null;
+      } catch (e) {
+        // Ignore
+      }
+    }
+    this.isAudioPlaying = false;
+
     if (this.synth) {
       try {
         this.synth.cancel();

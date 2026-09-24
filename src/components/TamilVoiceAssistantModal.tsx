@@ -34,6 +34,8 @@ interface ChatMessage {
   textEn?: string;
   showTranslation?: boolean;
   timestamp: string;
+  audioBase64?: string | null;
+  audioMimeType?: string;
 }
 
 const QUICK_PROMPTS = [
@@ -58,9 +60,9 @@ const QUICK_PROMPTS = [
     lang: 'ta' as const,
   },
   {
-    ta: 'When should I apply urea fertilizer for paddy?',
+    ta: 'நெல்லுக்கு யூரியா உரம் எப்போது இட வேண்டும்?',
     en: 'When should I apply urea fertilizer for paddy?',
-    lang: 'en' as const,
+    lang: 'ta' as const,
   },
 ];
 
@@ -77,19 +79,19 @@ export const TamilVoiceAssistantModal: React.FC<TamilVoiceAssistantModalProps> =
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Language input preference: 'auto' (default), 'ta' (Tamil priority), 'en' (English)
-  const [voiceLangMode, setVoiceLangMode] = useState<'auto' | 'ta' | 'en'>('auto');
+  // Language input preference: 'ta' default for Tamil Nadu farmers
+  const [voiceLangMode, setVoiceLangMode] = useState<'auto' | 'ta' | 'en'>('ta');
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'msg-welcome',
       sender: 'assistant',
       detectedLang: 'ta',
-      text: 'வணக்கம் உழவர் தோழரே! உங்கள் பயிர், நோய் தடுப்பு, உரம், பாசனம் அல்லது சந்தை விலை குறித்து என்னிடம் தமிழில் அல்லது ஆங்கிலத்தில் கேளுங்கள். (Ask me in Tamil or English!)',
+      text: 'வணக்கம் உழவர் தோழரே! உங்கள் பயிர், நோய் தடுப்பு, உரம், பாசனம் அல்லது சந்தை விலை குறித்து என்னிடம் கேளுங்கள். AI உங்களுடன் முழுமையாக தமிழில் பேசும்.',
       textTa:
-        'வணக்கம் உழவர் தோழரே! உங்கள் பயிர், நோய் தடுப்பு, உரம், பாசனம் அல்லது சந்தை விலை குறித்து என்னிடம் தமிழில் அல்லது ஆங்கிலத்தில் கேளுங்கள்.',
+        'வணக்கம் உழவர் தோழரே! உங்கள் பயிர், நோய் தடுப்பு, உரம், பாசனம் அல்லது சந்தை விலை குறித்து என்னிடம் கேளுங்கள். AI உங்களுடன் முழுமையாக தமிழில் பேசும்.',
       textEn:
-        'Welcome, Farmer Friend! Ask me about crops, disease control, fertilizers, irrigation, or mandi prices in Tamil or English.',
+        'Welcome, Farmer Friend! Ask me about crops, disease control, fertilizers, irrigation, or mandi prices. The AI will speak with you completely in Tamil.',
       timestamp: 'Just now',
     },
   ]);
@@ -148,7 +150,13 @@ export const TamilVoiceAssistantModal: React.FC<TamilVoiceAssistantModalProps> =
     setIsListening(false);
   };
 
-  const handleSpeakMessage = (msgId: string, textToSpeak: string, lang: 'ta' | 'en') => {
+  const handleSpeakMessage = (
+    msgId: string,
+    textToSpeak: string,
+    lang: 'ta' | 'en',
+    directAudio?: string | null,
+    audioMime = 'audio/wav'
+  ) => {
     if (isSpeaking && currentlySpeakingId === msgId) {
       speechService.stopSpeaking();
       setIsSpeaking(false);
@@ -159,10 +167,16 @@ export const TamilVoiceAssistantModal: React.FC<TamilVoiceAssistantModalProps> =
     setIsSpeaking(true);
     setCurrentlySpeakingId(msgId);
 
-    speechService.speak(textToSpeak, lang, () => {
-      setIsSpeaking(false);
-      setCurrentlySpeakingId(null);
-    });
+    speechService.speak(
+      textToSpeak,
+      lang,
+      () => {
+        setIsSpeaking(false);
+        setCurrentlySpeakingId(null);
+      },
+      directAudio || undefined,
+      audioMime
+    );
   };
 
   const handleSendQuery = async (queryText?: string) => {
@@ -196,23 +210,23 @@ export const TamilVoiceAssistantModal: React.FC<TamilVoiceAssistantModalProps> =
       const assistantMsg: ChatMessage = {
         id: asstMsgId,
         sender: 'assistant',
-        detectedLang: result.detectedLanguage,
+        detectedLang: 'ta',
         text: result.reply,
         textTa: result.replyTa,
         textEn: result.replyEn,
         showTranslation: false,
         timestamp: 'Just now',
+        audioBase64: result.audioBase64,
+        audioMimeType: result.audioMimeType,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
 
-      // Automatically speak the response in the user's detected language
-      handleSpeakMessage(asstMsgId, result.reply, result.detectedLanguage);
+      // Automatically speak the response in natural Tamil voice!
+      handleSpeakMessage(asstMsgId, result.reply, 'ta', result.audioBase64, result.audioMimeType);
     } catch (err) {
       setErrorMessage(
-        detected === 'ta'
-          ? 'பதில் பெறுவதில் சிரமம் ஏற்பட்டது. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.'
-          : 'Failed to retrieve advice. Please try asking again.'
+        'பதில் பெறுவதில் சிரமம் ஏற்பட்டது. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.'
       );
     } finally {
       setIsLoading(false);
@@ -317,6 +331,34 @@ export const TamilVoiceAssistantModal: React.FC<TamilVoiceAssistantModalProps> =
           </div>
         </div>
 
+        {/* Active Speaking Status Bar */}
+        {isSpeaking && (
+          <div className="bg-amber-400 text-stone-950 px-3.5 sm:px-4 py-2 flex items-center justify-between shadow-xs border-b border-amber-500 animate-in fade-in">
+            <div className="flex items-center gap-2 text-xs font-black min-w-0">
+              <div className="flex items-center gap-0.5 h-3.5 shrink-0">
+                <span className="w-1 h-3 bg-stone-950 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1 h-3.5 bg-stone-950 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1 h-2 bg-stone-950 rounded-full animate-bounce" />
+              </div>
+              <span className="truncate">
+                {language === 'ta'
+                  ? 'AI உழவர் தோழன் தமிழில் பேசுகிறார்...'
+                  : 'AI Farmer Friend is speaking in Tamil...'}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                speechService.stopSpeaking();
+                setIsSpeaking(false);
+                setCurrentlySpeakingId(null);
+              }}
+              className="text-[11px] font-extrabold bg-stone-950 text-amber-300 px-2.5 py-1 rounded-lg hover:bg-stone-800 transition-colors shrink-0"
+            >
+              {language === 'ta' ? 'நிறுத்து' : 'Stop'}
+            </button>
+          </div>
+        )}
+
         {/* Chat message stream */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-stone-50/80">
           {messages.map((msg) => {
@@ -387,15 +429,29 @@ export const TamilVoiceAssistantModal: React.FC<TamilVoiceAssistantModalProps> =
                               ? 'en'
                               : 'ta'
                             : msg.detectedLang || 'ta';
-                          handleSpeakMessage(msg.id, activeText, activeLang);
+                          handleSpeakMessage(
+                            msg.id,
+                            activeText,
+                            activeLang,
+                            msg.showTranslation ? null : msg.audioBase64,
+                            msg.audioMimeType
+                          );
                         }}
-                        className="min-h-[36px] px-2 py-1 rounded-lg flex items-center gap-1.5 text-emerald-700 hover:bg-emerald-50 font-bold transition-colors"
+                        className={`min-h-[36px] px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold transition-all ${
+                          isMsgSpeaking
+                            ? 'bg-amber-100 text-amber-950 ring-2 ring-amber-400 shadow-xs'
+                            : 'text-emerald-700 hover:bg-emerald-50'
+                        }`}
                       >
                         {isMsgSpeaking ? (
                           <>
-                            <VolumeX className="w-4 h-4 text-red-500 animate-pulse" />
-                            <span className="text-red-500">
-                              {msg.detectedLang === 'ta' ? 'நிறுத்து' : 'Stop'}
+                            <div className="flex items-center gap-0.5 h-3.5">
+                              <span className="w-1 h-3 bg-amber-700 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                              <span className="w-1 h-4 bg-amber-700 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                              <span className="w-1 h-2.5 bg-amber-700 rounded-full animate-bounce" />
+                            </div>
+                            <span className="text-amber-900 font-extrabold text-[11px]">
+                              {msg.detectedLang === 'ta' ? 'தமிழில் பேசுகிறது... (நிறுத்து)' : 'Speaking... (Stop)'}
                             </span>
                           </>
                         ) : (
@@ -403,7 +459,7 @@ export const TamilVoiceAssistantModal: React.FC<TamilVoiceAssistantModalProps> =
                             <Volume2 className="w-4 h-4 text-emerald-600" />
                             <span>
                               {msg.detectedLang === 'ta'
-                                ? 'குரலில் கேட்க'
+                                ? 'குரலில் கேட்க (Speak in Tamil)'
                                 : 'Listen to Voice'}
                             </span>
                           </>

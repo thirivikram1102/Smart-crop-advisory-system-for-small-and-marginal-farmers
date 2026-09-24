@@ -7,7 +7,7 @@ import { createServer as createViteServer } from 'vite';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
@@ -44,8 +44,8 @@ async function generateGeminiWithFallback(
     timeoutMs?: number;
   }
 ) {
-  const models = options.preferredModels || ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
-  const timeoutMs = options.timeoutMs || 5000;
+  const models = options.preferredModels || ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const timeoutMs = options.timeoutMs || 8000;
   let lastErr: any = null;
 
   for (let i = 0; i < models.length; i++) {
@@ -62,17 +62,8 @@ async function generateGeminiWithFallback(
       return response;
     } catch (err: any) {
       lastErr = err;
-      const status = err?.status || err?.code;
-      const msg = err?.message || '';
-      const isTransient =
-        status === 503 ||
-        msg.includes('503') ||
-        msg.includes('high demand') ||
-        msg.includes('UNAVAILABLE') ||
-        msg.includes('timeout') ||
-        status === 429;
-      if (isTransient && i < models.length - 1) {
-        // Brief delay before trying alternate model
+      if (i < models.length - 1) {
+        // Brief delay before trying alternate model in list
         await new Promise((resolve) => setTimeout(resolve, 200));
         continue;
       }
@@ -277,7 +268,7 @@ Return STRICT JSON format:
               ],
             },
           ],
-          preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'],
+          preferredModels: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'],
         });
 
         const rawText = response.text || '';
@@ -379,7 +370,82 @@ function detectInputLanguage(text: string): 'ta' | 'en' {
   return 'en';
 }
 
-// --- 6. Smart Tamil & English Voice Assistant API with Auto Language Detection ---
+// Cache for pre-generated Tamil speech audio chunks to guarantee instant playback
+const ttsAudioCache = new Map<string, { audioBase64: string; mimeType: string }>();
+
+// Helper function to synthesize natural, spoken Tamil audio using Gemini TTS
+async function synthesizeTamilSpeech(rawText: string): Promise<{ audioBase64: string; mimeType: string } | null> {
+  const ai = getAi();
+  if (!ai || !rawText || !rawText.trim()) return null;
+
+  // Clean text: strip markdown syntax, URLs, symbols for pure spoken Tamil
+  const cleanText = rawText
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/[#_~`]/g, '')
+    .trim();
+
+  // If text is lengthy, take first 2-3 sentences (up to 320 chars) for responsive low-latency speech
+  let spokenText = cleanText;
+  if (spokenText.length > 320) {
+    const sentences = spokenText.split(/(?<=[.!?|।\n])/);
+    let truncated = '';
+    for (const s of sentences) {
+      if ((truncated + s).length > 320) break;
+      truncated += s;
+    }
+    spokenText = truncated.trim() || spokenText.slice(0, 320);
+  }
+
+  const cacheKey = spokenText.trim();
+  if (ttsAudioCache.has(cacheKey)) {
+    return ttsAudioCache.get(cacheKey)!;
+  }
+
+  try {
+    const response = await withTimeout(
+      ai.models.generateContent({
+        model: 'gemini-3.8-flash-lite-tts',
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: spokenText }],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Kore' },
+            },
+          },
+        },
+      }),
+      8000
+    );
+
+    const part = response.candidates?.[0]?.content?.parts?.[0];
+    const audioData = part?.inlineData?.data;
+    const mimeType = part?.inlineData?.mimeType || 'audio/wav';
+
+    if (audioData) {
+      const result = { audioBase64: audioData, mimeType };
+      if (ttsAudioCache.size > 150) {
+        const firstKey = ttsAudioCache.keys().next().value;
+        if (firstKey) ttsAudioCache.delete(firstKey);
+      }
+      ttsAudioCache.set(cacheKey, result);
+      return result;
+    }
+  } catch (err: any) {
+    console.log('Gemini Tamil TTS notice:', err?.message || err);
+  }
+  return null;
+}
+
+// --- 6. Smart Tamil Agricultural AI Assistant API ---
 app.post('/api/assistant/query', async (req, res) => {
   const { prompt, lang } = req.body || {};
   const detectedLanguage = (lang === 'ta' || lang === 'en') ? lang : detectInputLanguage(prompt || '');
@@ -387,48 +453,56 @@ app.post('/api/assistant/query', async (req, res) => {
 
   if (ai && prompt) {
     try {
-      const systemInstruction = `You are "உழவன் தோழன் (Farmer's Friend)", an expert South Indian agricultural advisor for small and marginal farmers in Tamil Nadu.
+      const systemInstruction = `You are "உழவன் தோழன் (Farmer's Friend)", an expert South Indian agricultural scientist and extension advisor for Tamil Nadu farmers.
 The farmer is asking: "${prompt}".
-CRITICAL DIRECTIVE:
-1. Automatically verify the user's language.
-2. If the user asks in Tamil (Tamil script, Tanglish, or Tamil terminology):
-   - You MUST respond COMPLETELY in natural, warm, conversational Tamil without unnecessary English technical jargon.
-   - Set "detectedLanguage": "ta".
-   - "reply" MUST be completely in Tamil.
-3. If the user asks in English:
-   - You MUST respond COMPLETELY in clear, practical, direct English.
-   - Set "detectedLanguage": "en".
-   - "reply" MUST be completely in English.
-4. Return a STRICT JSON response:
+
+MANDATORY DIRECTIVE:
+THE USER REQUIRES THAT THE AI MUST ANSWER AND SPEAK IN NATURAL TAMIL (தமிழ் மொழி).
+1. Regardless of whether the farmer's question was asked in Tamil, English, or Tanglish, your primary reply ("reply" and "replyTa") MUST be provided COMPLETELY in natural, warm, practical, farmer-friendly Tamil suitable for small and marginal farmers in Tamil Nadu.
+2. Address the farmer with traditional respect and warmth (e.g. "வணக்கம் உழவர் தோழரே...").
+3. Provide practical, accurate agricultural advice based on TNAU (Tamil Nadu Agricultural University) recommendations, covering soil, irrigation, fertilizer dosages, pest remedies, mandi rates, and crop seasons.
+4. If the question was asked in English, also provide "replyEn" with a clear English translation for reference, but your primary spoken and displayed response ("reply" and "replyTa") MUST be 100% in Tamil.
+5. Return a STRICT JSON response:
 {
-  "detectedLanguage": "ta" | "en",
-  "reply": "Complete primary response in the detected language (2-4 sentences with actionable advice)",
-  "replyTa": "Complete natural Tamil version for Tamil Nadu farmers",
-  "replyEn": "Complete clear English version",
+  "detectedLanguage": "ta",
+  "reply": "முழுமையான தமிழ் பதில் (Complete primary response in natural, practical Tamil - 2 to 4 actionable sentences)",
+  "replyTa": "முழுமையான தமிழ் பதில்",
+  "replyEn": "Complete clear English translation of the advice",
   "topic": "crop" | "disease" | "fertilizer" | "irrigation" | "market" | "profit" | "general"
 }`;
 
       const response = await generateGeminiWithFallback(ai, {
         contents: prompt,
         config: { systemInstruction },
-        preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'],
+        preferredModels: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'],
       });
 
       const rawText = response.text || '';
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        // Guarantee detected language & reply fields
-        const finalLang = parsed.detectedLanguage || detectedLanguage;
-        const reply = parsed.reply || (finalLang === 'ta' ? parsed.replyTa : parsed.replyEn);
+        // Guarantee primary answer is completely in Tamil as required
+        const tamilReply = parsed.replyTa || parsed.reply || '';
+        const englishReply = parsed.replyEn || '';
+
+        // Synthesize spoken Tamil audio
+        let audioResult: { audioBase64: string; mimeType: string } | null = null;
+        try {
+          audioResult = await synthesizeTamilSpeech(tamilReply);
+        } catch (e) {
+          // Non-blocking
+        }
+
         return res.json({
-          detectedLanguage: finalLang,
-          reply,
-          replyTa: parsed.replyTa || reply,
-          replyEn: parsed.replyEn || reply,
+          detectedLanguage: 'ta',
+          reply: tamilReply,
+          replyTa: tamilReply,
+          replyEn: englishReply,
           topic: parsed.topic || 'general',
-          textEn: parsed.replyEn || reply,
-          textTa: parsed.replyTa || reply,
+          textEn: englishReply,
+          textTa: tamilReply,
+          audioBase64: audioResult?.audioBase64 || null,
+          audioMimeType: audioResult?.mimeType || 'audio/wav',
         });
       }
     } catch (e: any) {
@@ -439,41 +513,82 @@ CRITICAL DIRECTIVE:
   // Comprehensive Agricultural Expert Knowledge Base (TNAU & KVK based)
   const q = (prompt || '').toLowerCase();
   let topic = 'general';
-  let replyTa = `உங்கள் கேள்வி தொடர்பாக: வயலில் நீர் தேங்காமல் சீரான வடிகால் அமைக்கவும், இலைகளின் அடிப்பகுதியில் பூச்சி உள்ளதா என கவனிக்கவும். தமிழ்நாடு வேளாண் பல்கலைக்கழக (TNAU) வழிகாட்டுதல்படி உரமிடவும்.`;
-  let replyEn = `For "${prompt}": Maintain proper field drainage, inspect leaf undersides for pests, and apply split doses of fertilizers according to TNAU crop schedules.`;
+  let replyTa = `வணக்கம் உழவர் தோழரே! உங்கள் கேள்வி தொடர்பாக: வயலில் நீர் தேங்காமல் சீரான வடிகால் அமைக்கவும், வாரந்தோறும் இலைகளின் அடிப்பகுதியில் பூச்சி உள்ளதா என கண்காணிக்கவும். தமிழ்நாடு வேளாண்மைப் பல்கலைக்கழக (TNAU) வழிகாட்டுதல்படி உரமிடவும்.`;
+  let replyEn = `Regarding "${prompt}": Maintain proper field drainage, inspect leaf undersides for pests, and apply split doses of fertilizers according to TNAU crop schedules.`;
 
-  if (q.includes('பயிர்') || q.includes('crop') || q.includes('விளைச்சல்') || q.includes('yield') || q.includes('சாகுபடி') || q.includes('variety')) {
+  if (q.includes('பயிர்') || q.includes('crop') || q.includes('விளைச்சல்') || q.includes('yield') || q.includes('சாகுபடி') || q.includes('variety') || q.includes('seed') || q.includes('விதை') || q.includes('best')) {
     topic = 'crop';
-    replyTa = `தற்போதைய பருவத்திற்கு சம்பா நெல் (CR 1009 / பொன்னி) அல்லது வம்பன் 8 உளுந்து சாகுபடி செய்வது குறைந்த செலவில் அதிக லாபகரமான மகசூலைத் தரும். வண்டல் மற்றும் களிமண் நிலத்திற்கு ஏற்றது.`;
+    replyTa = `வணக்கம் உழவரே! தற்போதைய பருவத்திற்கு சம்பா நெல் (CR 1009 / பொன்னி) அல்லது வம்பன் 8 உளுந்து சாகுபடி செய்வது குறைந்த செலவில் அதிக லாபகரமான மகசூலைத் தரும். இது காவிரி டெல்டா மற்றும் வண்டல் நிலங்களுக்கு மிகவும் உகந்தது.`;
     replyEn = `For Tamil Nadu delta and dryland regions, Samba Paddy (CR 1009/Ponni) or Blackgram (VBN 8) provide the best risk-adjusted profit per acre with moderate water needs.`;
-  } else if (q.includes('பூச்சி') || q.includes('புகையான்') || q.includes('pest') || q.includes('bph') || q.includes('இலைசுருட்டு') || q.includes('இலை') || q.includes('நோய்') || q.includes('blight')) {
+  } else if (q.includes('பூச்சி') || q.includes('புகையான்') || q.includes('pest') || q.includes('bph') || q.includes('இலைசுருட்டு') || q.includes('இலை') || q.includes('நோய்') || q.includes('blight') || q.includes('fungus')) {
     topic = 'disease';
-    replyTa = `பூச்சி அல்லது புகையான் தாக்குதலைக் கட்டுப்படுத்த வயல் நீரை 2 நாட்கள் வடிக்கவும். ஏக்கருக்கு 1 விளக்கு பொறி அமைத்து, 5% வேப்பெண்ணெய் கரைசல் அல்லது சூடோமோனாஸ் தெளிக்கவும்.`;
+    replyTa = `வணக்கம் உழவரே! பூச்சி அல்லது புகையான் தாக்குதலைக் கட்டுப்படுத்த வயல் நீரை உடனடியாக 2-3 நாட்களுக்கு வடிக்கவும். ஏக்கருக்கு 1 விளக்கு பொறி அமைக்கவும். 5% வேப்பங்கொட்டை சாறு அல்லது சூடோமோனாஸ் (லிட்டருக்கு 2.5 கிராம்) தெளிக்கவும்.`;
     replyEn = `For pest and leaf blight outbreaks: Drain standing field water for 2-3 days, set up yellow sticky traps or light traps, and spray Neem Seed Kernel Extract (NSKE 5%) or Pseudomonas fluorescens.`;
-  } else if (q.includes('உரம்') || q.includes('fertilizer') || q.includes('யூரியா') || q.includes('urea') || q.includes('டிஏபி') || q.includes('பொட்டாஷ்') || q.includes('manure')) {
+  } else if (q.includes('உரம்') || q.includes('fertilizer') || q.includes('யூரியா') || q.includes('urea') || q.includes('டிஏபி') || q.includes('பொட்டாஷ்') || q.includes('manure') || q.includes('dap') || q.includes('potash')) {
     topic = 'fertilizer';
-    replyTa = `யூரியாவை மொத்தமாக இடாமல் 3 அல்லது 4 சம தவணைகளாக இடவும் (அடியுரம், தூர் கட்டும் பருவம் 25-30 நாட்கள், கதிர் உருவாகும் தருணம்). எப்போதும் மழைக் காலத்தில் உரம் தெளிக்காதீர்கள்.`;
+    replyTa = `வணக்கம் உழவரே! வேப்பெண்ணெய் பூசிய யூரியாவை மொத்தமாக இடாமல் 3 சம தவணைகளாக இடவும்: அடியுரமாக 25%, தூர்க்கட்டும் பருவத்தில் (25-30 நாட்கள்) 50%, கதிர் உருவாகும் தருணத்தில் 25% இடவும். மழைக்காலத்தில் உரம் தெளிக்க வேண்டாம்.`;
     replyEn = `Broadcast neem-coated urea in divided splits: 25% basal, 50% at tillering (25-30 days), and 25% at panicle initiation. Avoid applying before impending rains.`;
-  } else if (q.includes('நீர்') || q.includes('பாசனம்') || q.includes('water') || q.includes('irrigation') || q.includes('தண்ணீர்') || q.includes('மழை') || q.includes('rain')) {
+  } else if (q.includes('நீர்') || q.includes('பாசனம்') || q.includes('water') || q.includes('irrigation') || q.includes('தண்ணீர்') || q.includes('மழை') || q.includes('rain') || q.includes('moisture') || q.includes('ஈரப்பதம்')) {
     topic = 'irrigation';
-    replyTa = `காய்ச்சலும் பாய்ச்சலுமாக (AWD) பாசனம் செய்யுங்கள். அடுத்த 48 மணி நேரத்தில் மழை பெய்ய வாய்ப்புள்ளதால் இன்று நீர் பாய்ச்சுவதை ஒத்திவைக்கவும். இதனால் 30% நீர் மிச்சமாகும்.`;
-    replyEn = `Implement Alternate Wetting and Drying (AWD) with perforated PVC tubes. Soil moisture is adequate and rain is forecasted, so postpone immediate flood irrigation to conserve water.`;
-  } else if (q.includes('விலை') || q.includes('market') || q.includes('price') || q.includes('மண்டி') || q.includes('விற்பனை') || q.includes('rate')) {
+    replyTa = `வணக்கம் உழவரே! மண்ணில் தற்போது போதுமான ஈரப்பதம் உள்ளது. மேலும் அடுத்த 48 மணி நேரத்தில் மழை பெய்ய வாய்ப்புள்ளதால் உடனடியாக தண்ணீர் பாய்ச்சுவதை ஒத்திவைக்கவும். காய்ச்சலும் பாய்ச்சலுமாக (AWD) பாசனம் செய்தால் 30% நீர் மிச்சமாகும்.`;
+    replyEn = `Soil moisture is adequate and regional rain is forecasted over the next 48 hours. Postpone immediate flood irrigation. Implementing Alternate Wetting and Drying (AWD) saves up to 30% water.`;
+  } else if (q.includes('விலை') || q.includes('market') || q.includes('price') || q.includes('மண்டி') || q.includes('விற்பனை') || q.includes('rate') || q.includes('procurement')) {
     topic = 'market';
-    replyTa = `ஒழுங்குமுறை விற்பனைக்கூடங்களில் முதல் ரக சன்ன நெல் குவிண்டாலுக்கு சுமார் ₹2,380 முதல் ₹2,450 வரை விலை போகிறது. நேரடி நெல் கொள்முதல் நிலைய போனஸ் பெற ஈரப்பதம் 17% க்குள் இருக்குமாறு உலர்த்தவும்.`;
+    replyTa = `வணக்கம் உழவரே! தஞ்சாவூர் மற்றும் உள்ளூர் ஒழுங்குமுறை விற்பனைக்கூடங்களில் முதல் ரக சன்ன நெல் குவிண்டாலுக்கு ₹2,380 முதல் ₹2,450 வரை விலை போகிறது. நேரடி நெல் கொள்முதல் நிலைய போனஸ் பெற ஈரப்பதத்தை 17% க்குள் காயவைத்து எடுத்துச் செல்லவும்.`;
     replyEn = `Paddy Grade A is trading near ₹2,380 - ₹2,450 per quintal in regulated mandis with steady seasonal demand. Ensure harvested moisture is below 17% for direct procurement bonus.`;
+  } else if (q.includes('லாபம்') || q.includes('profit') || q.includes('செலவு') || q.includes('cost') || q.includes('வருமானம்') || q.includes('revenue') || q.includes('budget')) {
+    topic = 'profit';
+    replyTa = `வணக்கம் உழவரே! ஒரு ஏக்கர் நெல் சாகுபடிக்கு உழவு, விதை, உரம் மற்றும் அறுவடை உட்பட சுமார் ₹26,000 செலவாகும். சராசரியாக 2.8 டன் மகசூல் கிடைத்தால், சுமார் ₹65,800 வருவாய் மூலம் நிகர லாபம் ₹39,800 வரை கிட்டும்.`;
+    replyEn = `Cultivation cost for one acre of paddy is ~₹26,000. With 2.8 tonnes yield at current MSP, expected gross revenue is ~₹65,800, generating a net profit of ~₹39,800 per acre.`;
   }
 
-  const primaryReply = detectedLanguage === 'ta' ? replyTa : replyEn;
+  // The AI ALWAYS answers in Tamil!
+  const primaryReply = replyTa;
+
+  let audioResult: { audioBase64: string; mimeType: string } | null = null;
+  try {
+    audioResult = await synthesizeTamilSpeech(primaryReply);
+  } catch (e) {
+    // Non-blocking
+  }
 
   res.json({
-    detectedLanguage,
+    detectedLanguage: 'ta',
     reply: primaryReply,
     replyTa,
     replyEn,
     topic,
     textEn: replyEn,
     textTa: replyTa,
+    audioBase64: audioResult?.audioBase64 || null,
+    audioMimeType: audioResult?.mimeType || 'audio/wav',
+  });
+});
+
+// --- 7. Dedicated Tamil Voice & Text-to-Speech (TTS) API ---
+app.post('/api/tts', async (req, res) => {
+  const { text, lang } = req.body || {};
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'Text is required for TTS synthesis' });
+  }
+
+  try {
+    const audioResult = await synthesizeTamilSpeech(text);
+    if (audioResult) {
+      return res.json({
+        success: true,
+        audioBase64: audioResult.audioBase64,
+        mimeType: audioResult.mimeType,
+        text,
+      });
+    }
+  } catch (e: any) {
+    console.log('TTS synthesis error:', e?.message || e);
+  }
+
+  return res.json({
+    success: false,
+    message: 'TTS generation unavailable, please use browser voice fallback',
   });
 });
 

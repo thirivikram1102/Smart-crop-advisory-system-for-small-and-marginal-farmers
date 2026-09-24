@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAlerts } from '../contexts/AlertsContext';
 import { DiseasePrediction } from '../types';
 import { detectPlantDisease } from '../services/diseaseDetectionService';
+import { speechService } from '../services/speechService';
 import {
   UploadCloud,
   Camera,
@@ -16,6 +17,8 @@ import {
   RefreshCw,
   HelpCircle,
   FileText,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 export const DiseaseDetectionPage: React.FC = () => {
@@ -28,9 +31,25 @@ export const DiseaseDetectionPage: React.FC = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [prediction, setPrediction] = useState<DiseasePrediction | null>(null);
   const [reportedSuccessfully, setReportedSuccessfully] = useState(false);
+  const [isSpeakingDiagnosis, setIsSpeakingDiagnosis] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleToggleSpeakDiagnosis = () => {
+    if (!prediction) return;
+    if (isSpeakingDiagnosis) {
+      speechService.stopSpeaking();
+      setIsSpeakingDiagnosis(false);
+      return;
+    }
+
+    const textToSpeak = `பயிர்: ${prediction.cropTa}. கண்டறியப்பட்ட நோய்: ${prediction.detectedDiseaseTa}. தீவிரத்தன்மை: ${prediction.severity}. அறிகுறிகள்: ${prediction.symptomsTa.slice(0, 2).join('. ')}. பரிந்துரைக்கப்படும் சிகிச்சை முறை: ${prediction.treatmentTa.slice(0, 2).join('. ')}`;
+    setIsSpeakingDiagnosis(true);
+    speechService.speak(textToSpeak, 'ta', () => {
+      setIsSpeakingDiagnosis(false);
+    });
+  };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -276,6 +295,29 @@ export const DiseaseDetectionPage: React.FC = () => {
               <p className="text-xs text-stone-500 font-mono">
                 {prediction.scientificName} • {prediction.crop}
               </p>
+              <div className="mt-2">
+                <button
+                  onClick={handleToggleSpeakDiagnosis}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                    isSpeakingDiagnosis
+                      ? 'bg-red-500 text-white animate-pulse'
+                      : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300'
+                  }`}
+                  aria-label="Listen in Tamil"
+                >
+                  {isSpeakingDiagnosis ? (
+                    <>
+                      <VolumeX className="w-3.5 h-3.5" />
+                      <span>நிறுத்து (Stop)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>தமிழில் கேட்க (Listen in Tamil)</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
