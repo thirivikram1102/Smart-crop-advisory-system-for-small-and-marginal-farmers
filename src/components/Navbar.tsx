@@ -17,6 +17,7 @@ import {
   LogOut,
   LogIn,
   UserPlus,
+  Crosshair,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -113,6 +114,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>31°C</span>
                 <span className="text-emerald-300">•</span>
                 <span className="truncate max-w-[90px]">{farmer?.district || 'Thanjavur'}</span>
+              </button>
+            )}
+
+            {/* GPS Location Tracker quick button */}
+            {isAuthenticated && (
+              <button
+                onClick={() => setActiveTab('location-tracker')}
+                className={`hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border transition-all min-h-[40px] ${
+                  activeTab === 'location-tracker'
+                    ? 'bg-amber-400 text-stone-950 border-amber-300 font-black shadow-xs'
+                    : 'bg-emerald-800/80 hover:bg-emerald-800 text-emerald-100 border-emerald-700/80 hover:border-emerald-500'
+                }`}
+                title={language === 'ta' ? 'கள GPS அமைவிடம் & டிராக்கர்' : 'Field GPS Location Tracker'}
+                aria-label="Location Tracker"
+              >
+                <Crosshair className={`w-3.5 h-3.5 ${activeTab === 'location-tracker' ? 'text-stone-950 animate-spin' : 'text-amber-300'}`} />
+                <span className="hidden md:inline">
+                  {language === 'ta' ? 'GPS அமைவிடம்' : 'GPS Tracker'}
+                </span>
               </button>
             )}
 
@@ -235,81 +255,113 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Farmer Profile Menu (when logged in) OR Login/Register buttons (when logged out) */}
             {isAuthenticated && farmer ? (
-              <div className="relative">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-semibold transition-all border border-emerald-700/60 shadow-inner"
-                  title="Farmer Account Menu"
-                >
-                  {/* Farmer Profile Icon / Avatar with initial */}
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500 ring-2 ring-emerald-300/60 flex items-center justify-center text-white text-xs font-black shadow-xs">
-                    {farmer.name ? farmer.name[0].toUpperCase() : 'R'}
-                  </div>
-
-                  {/* Farmer Name in Dashboard Header */}
-                  <span className="hidden sm:inline truncate max-w-[120px] font-bold text-emerald-50">
-                    {farmer.name}
-                  </span>
-
-                  <ChevronDown className="w-3.5 h-3.5 text-emerald-300" />
-                </button>
-
-                {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white text-stone-900 rounded-2xl shadow-2xl border border-stone-200 z-50 overflow-hidden py-1">
-                    <div className="px-3.5 py-3 border-b border-stone-100 bg-emerald-50/50">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-7 h-7 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">
-                          {farmer.name ? farmer.name[0] : 'R'}
-                        </div>
-                        <div className="truncate">
-                          <p className="text-xs font-extrabold text-stone-900 truncate">{farmer.name}</p>
-                          <p className="text-[10px] text-stone-500 truncate">
-                            {farmer.village ? `${farmer.village}, ` : ''}{farmer.district}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="inline-block mt-1 text-[10px] bg-emerald-100 text-emerald-900 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
-                        {farmer.farmSizeAcres} Acres • {farmer.mainCrop || farmer.mainCrops?.[0] || 'Paddy'}
-                      </span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center gap-1.5 sm:gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-semibold transition-all border border-emerald-700/60 shadow-inner min-h-[40px]"
+                    title="Farmer Account Menu"
+                  >
+                    {/* Farmer Profile Icon / Avatar with initial */}
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500 ring-2 ring-emerald-300/60 flex items-center justify-center text-white text-xs font-black shadow-xs shrink-0">
+                      {farmer.name ? farmer.name[0].toUpperCase() : '🌾'}
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setActiveTab('profile');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2.5 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 font-medium"
-                    >
-                      <User className="w-4 h-4 text-emerald-700" />
-                      <span>{language === 'ta' ? 'உழவர் சுயவிவரம் & கணக்கு' : 'Farmer Profile & Account'}</span>
-                    </button>
+                    {/* Farmer Name in Dashboard Header */}
+                    <span className="hidden sm:inline truncate max-w-[120px] font-bold text-emerald-50">
+                      {farmer.name || (farmer.mobile ? `+91 ${farmer.mobile.slice(0, 5)}` : 'Farmer')}
+                    </span>
 
-                    <button
-                      onClick={() => {
-                        onOpenAdminModal?.();
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2.5"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-stone-500" />
-                      <span>{t.nav.admin}</span>
-                    </button>
+                    <ChevronDown className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                  </button>
 
-                    <div className="border-t border-stone-100 my-1" />
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white text-stone-900 rounded-2xl shadow-2xl border border-stone-200 z-50 overflow-hidden py-1 animate-in fade-in">
+                      <div className="px-3.5 py-3 border-b border-stone-100 bg-emerald-50/50">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-8 h-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-black text-xs shrink-0">
+                            {farmer.name ? farmer.name[0].toUpperCase() : '🌾'}
+                          </div>
+                          <div className="truncate min-w-0">
+                            <p className="text-xs font-extrabold text-stone-900 truncate">
+                              {farmer.name || 'Farmer Account'}
+                            </p>
+                            <p className="text-[10px] text-stone-500 truncate font-mono">
+                              {farmer.mobile ? `+91 ${farmer.mobile.slice(0, 5)} ${farmer.mobile.slice(5)}` : ''}
+                            </p>
+                            <p className="text-[10px] text-emerald-800 font-semibold truncate">
+                              {[farmer.village, farmer.district].filter(Boolean).join(', ') || 'Tamil Nadu'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="inline-block mt-1 text-[10px] bg-emerald-100 text-emerald-900 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                          {farmer.farmSizeAcres || 2.5} Acres • {farmer.mainCrop || farmer.mainCrops?.[0] || 'Samba Paddy'}
+                        </span>
+                      </div>
 
-                    <button
-                      onClick={() => {
-                        logout();
-                        setActiveTab('login');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 font-bold"
-                    >
-                      <LogOut className="w-4 h-4 text-rose-600" />
-                      <span>{auth.logoutButton || 'Log Out'}</span>
-                    </button>
-                  </div>
-                )}
+                      <button
+                        onClick={() => {
+                          setActiveTab('profile');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 font-medium"
+                      >
+                        <User className="w-4 h-4 text-emerald-700" />
+                        <span>{language === 'ta' ? 'உழவர் சுயவிவரம் & கணக்கு' : 'Farmer Profile & Account'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          onOpenAdminModal?.();
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2.5"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-stone-500" />
+                        <span>{t.nav.admin}</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText('https://ais-pre-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app');
+                          alert(language === 'ta' ? 'நேரலை இணையதள இணைப்பு நகலெடுக்கப்பட்டது!\nhttps://ais-pre-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app' : 'Live app link copied to clipboard!\nhttps://ais-pre-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2.5"
+                      >
+                        <Globe className="w-4 h-4 text-emerald-600" />
+                        <span>{language === 'ta' ? 'நேரலை இணைப்பு நகலெடு (Live Link)' : 'Copy Live Hosted Link'}</span>
+                      </button>
+
+                      <div className="border-t border-stone-100 my-1" />
+
+                      <button
+                        onClick={() => {
+                          logout();
+                          setActiveTab('login');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 font-bold"
+                      >
+                        <LogOut className="w-4 h-4 text-rose-600" />
+                        <span>{language === 'ta' ? 'வெளியேறு (Logout)' : 'Log Out'}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Direct Visible Logout Button */}
+                <button
+                  onClick={() => {
+                    logout();
+                    setActiveTab('login');
+                  }}
+                  className="flex items-center gap-1.5 bg-red-800/90 hover:bg-red-700 text-white font-bold px-2.5 sm:px-3 py-1.5 rounded-xl text-xs shadow-xs transition-colors min-h-[40px] border border-red-700"
+                  title="Logout and redirect to Login Page"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-red-200" />
+                  <span className="hidden xs:inline sm:inline">{language === 'ta' ? 'வெளியேறு' : 'Logout'}</span>
+                </button>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">

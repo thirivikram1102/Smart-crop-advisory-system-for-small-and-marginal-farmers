@@ -1,12 +1,15 @@
 import React from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
+  Droplets,
+  CalendarCheck2,
   Sprout,
   ScanEye,
-  Mic,
-  Droplets,
   Calculator,
+  Mic,
   AlertTriangle,
+  Crosshair,
+  MapPin,
 } from 'lucide-react';
 
 interface QuickActionBannerProps {
@@ -22,12 +25,30 @@ export const QuickActionBanner: React.FC<QuickActionBannerProps> = ({
 
   const actions = [
     {
+      id: 'irrigation',
+      title: language === 'ta' ? 'நுண்ணறிவு பாசனம்' : 'Smart Irrigation',
+      subtitle: language === 'ta' ? 'மண் ஈரப்பதம் & அட்டவணை' : 'Soil Moisture & AWD',
+      icon: Droplets,
+      color: 'bg-cyan-50 text-cyan-950 border-cyan-300 hover:bg-cyan-100/90 shadow-2xs',
+      iconBg: 'bg-cyan-600 text-white',
+      badge: 'Smart',
+    },
+    {
+      id: 'crop-management',
+      title: language === 'ta' ? 'பயிர் மேலாண்மை' : 'Crop Management',
+      subtitle: language === 'ta' ? 'வளர்ச்சி காலண்டர் & குறிப்பு' : 'Growth Stages & Log',
+      icon: CalendarCheck2,
+      color: 'bg-emerald-50 text-emerald-950 border-emerald-300 hover:bg-emerald-100/90 shadow-2xs',
+      iconBg: 'bg-emerald-700 text-white',
+      badge: 'Active',
+    },
+    {
       id: 'crop-recommendation',
       title: language === 'ta' ? 'பயிர் பரிந்துரை' : 'Recommend Crop',
       subtitle: language === 'ta' ? 'மண் & தட்பவெப்பத்திற்கு ஏற்ப' : 'AI Soil Match',
       icon: Sprout,
-      color: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/80',
-      iconBg: 'bg-emerald-600 text-white',
+      color: 'bg-teal-50 text-teal-900 border-teal-200 hover:bg-teal-100/80',
+      iconBg: 'bg-teal-600 text-white',
       badge: 'AI',
     },
     {
@@ -40,6 +61,24 @@ export const QuickActionBanner: React.FC<QuickActionBannerProps> = ({
       badge: 'Vision',
     },
     {
+      id: 'profit-prediction',
+      title: language === 'ta' ? 'லாபக் கணக்கீடு' : 'Predict Profit',
+      subtitle: language === 'ta' ? 'செலவு & நிகர வருவாய்' : 'Cost & Margin',
+      icon: Calculator,
+      color: 'bg-lime-50 text-lime-900 border-lime-200 hover:bg-lime-100/80',
+      iconBg: 'bg-lime-600 text-white',
+      badge: '₹',
+    },
+    {
+      id: 'location-tracker',
+      title: language === 'ta' ? 'கள GPS அமைவிடம்' : 'Field GPS Tracker',
+      subtitle: language === 'ta' ? 'நேரலை அமைவிடம் & எல்லை' : 'Live Plot & Boundary',
+      icon: Crosshair,
+      color: 'bg-emerald-50 text-emerald-950 border-emerald-300 hover:bg-emerald-100/80',
+      iconBg: 'bg-emerald-800 text-white',
+      badge: 'GPS',
+    },
+    {
       id: 'voice-assistant',
       title: language === 'ta' ? 'தமிழில் பேசுங்கள்' : 'Ask in Tamil',
       subtitle: language === 'ta' ? 'குரல் வழி விவசாய உதவி' : 'Voice Assistant',
@@ -48,31 +87,6 @@ export const QuickActionBanner: React.FC<QuickActionBannerProps> = ({
       iconBg: 'bg-amber-500 text-stone-950',
       badge: 'தமிழ்',
       onClick: onOpenVoiceModal,
-    },
-    {
-      id: 'irrigation',
-      title: language === 'ta' ? 'பாசன ஆலோசனை' : 'Irrigation Advice',
-      subtitle: language === 'ta' ? 'மண் ஈரப்பதம் & மழை' : 'Water Schedule',
-      icon: Droplets,
-      color: 'bg-cyan-50 text-cyan-900 border-cyan-200 hover:bg-cyan-100/80',
-      iconBg: 'bg-cyan-600 text-white',
-    },
-    {
-      id: 'profit-prediction',
-      title: language === 'ta' ? 'லாபக் கணக்கீடு' : 'Predict Profit',
-      subtitle: language === 'ta' ? 'செலவு & நிகர வருவாய்' : 'Cost & Margin',
-      icon: Calculator,
-      color: 'bg-lime-50 text-lime-900 border-lime-200 hover:bg-lime-100/80',
-      iconBg: 'bg-lime-600 text-white',
-    },
-    {
-      id: 'alerts',
-      title: language === 'ta' ? 'நோய் எச்சரிக்கைகள்' : 'Disease Alerts',
-      subtitle: language === 'ta' ? 'அருகிலுள்ள கிராம தகவல்' : 'Village Outbreaks',
-      icon: AlertTriangle,
-      color: 'bg-orange-50 text-orange-950 border-orange-200 hover:bg-orange-100/80',
-      iconBg: 'bg-orange-500 text-white',
-      badge: 'Live',
     },
   ];
 
@@ -87,7 +101,7 @@ export const QuickActionBanner: React.FC<QuickActionBannerProps> = ({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 sm:gap-3">
         {actions.map((act) => {
           const Icon = act.icon;
           return (

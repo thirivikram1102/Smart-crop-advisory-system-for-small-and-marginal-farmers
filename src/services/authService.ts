@@ -7,62 +7,22 @@ import { FarmerProfile, UserAccount, FarmerOnboardingData } from '../types';
  * with full session persistence, remember-me support, password validation, and OTP verification.
  */
 
-const USERS_STORAGE_KEY = 'smart_crop_users_v2';
-const SESSION_STORAGE_KEY = 'smart_crop_active_session_v2';
-const PENDING_ONBOARDING_KEY = 'smart_crop_pending_onboarding_v2';
-const RESET_OTP_STORAGE_KEY = 'smart_crop_reset_otp_v2';
+const USERS_STORAGE_KEY = 'smart_crop_users_v3';
+const SESSION_STORAGE_KEY = 'smart_crop_active_session_v3';
+const PENDING_ONBOARDING_KEY = 'smart_crop_pending_onboarding_v3';
+const RESET_OTP_STORAGE_KEY = 'smart_crop_reset_otp_v3';
 
-export const DEFAULT_DEMO_FARMER: FarmerProfile = {
-  id: 'farmer-thanjavur-01',
-  name: 'Ravi Kumar (ரவி குமார்)',
-  mobile: '9842176540',
-  phone: '9842176540',
-  email: 'ravi.farmer@gmail.com',
-  state: 'Tamil Nadu',
-  district: 'Thanjavur',
-  village: 'Thiruvaiyaru (திருவையாறு)',
-  farmSizeAcres: 2.5,
-  soilType: 'Clay Loam (களிமண் கலந்த வண்டல் மண்)',
-  irrigationType: 'Borewell & Canal (ஆழ்துளை & வாய்க்கால் பாசனம்)',
-  irrigationSource: 'Borewell & Canal (ஆழ்துளை & வாய்க்கால் பாசனம்)',
-  mainCrops: ['Samba Paddy (சம்பா நெல் - CR 1009)', 'Blackgram (உளுந்து)'],
-  mainCrop: 'Samba Paddy (சம்பா நெல் - CR 1009)',
-  currentCrop: 'Samba Paddy (சம்பா நெல் - CR 1009)',
-  preferredLanguage: 'ta',
-  createdAt: '2026-01-10',
-  isVerified: true,
-};
-
-export const DEFAULT_DEMO_ACCOUNT: UserAccount = {
-  id: 'user-thanjavur-01',
-  identifier: '9842176540',
-  passwordHash: 'password123', // In production, replaced with bcrypt/PBKDF2 or Firebase Auth
-  createdAt: '2026-01-10',
-  profile: DEFAULT_DEMO_FARMER,
-};
-
-// Seed initial demo account if storage empty
+// Storage for registered user accounts - empty by default, strictly isolated per user
 function getStoredUsers(): UserAccount[] {
   try {
     const raw = localStorage.getItem(USERS_STORAGE_KEY);
     if (!raw) {
-      const initial = [
-        DEFAULT_DEMO_ACCOUNT,
-        {
-          id: 'user-email-demo',
-          identifier: 'ravi.farmer@gmail.com',
-          passwordHash: 'password123',
-          createdAt: '2026-01-10',
-          profile: DEFAULT_DEMO_FARMER,
-        },
-      ];
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initial));
-      return initial;
+      return [];
     }
     return JSON.parse(raw);
   } catch (e) {
     console.error('Error reading stored users:', e);
-    return [DEFAULT_DEMO_ACCOUNT];
+    return [];
   }
 }
 
@@ -83,56 +43,47 @@ export interface AuthSession {
   expiresAt: number;
 }
 
-const EXPLICIT_LOGOUT_KEY = 'smart_crop_explicit_logout_v2';
+const EXPLICIT_LOGOUT_KEY = 'smart_crop_explicit_logout_v3';
 
 export const authService = {
   /**
-   * Get currently active session from localStorage (remember-me) or sessionStorage
+   * Get currently active session from localStorage (remember-me) or sessionStorage.
+   * If not logged in, returns null so unauthenticated visitors are redirected to the login page.
    */
   getCurrentSession(): AuthSession | null {
     try {
-      // If user explicitly clicked logout, respect it
       if (sessionStorage.getItem(EXPLICIT_LOGOUT_KEY) === 'true') {
         return null;
       }
 
-      // Check localStorage first
+      // Check localStorage first (remember-me persistent)
       const persistent = localStorage.getItem(SESSION_STORAGE_KEY);
       if (persistent) {
         const session: AuthSession = JSON.parse(persistent);
-        if (session.expiresAt > Date.now()) {
+        if (session && session.expiresAt > Date.now() && session.profile) {
           return session;
         } else {
           localStorage.removeItem(SESSION_STORAGE_KEY);
         }
       }
 
-      // Check sessionStorage
+      // Check sessionStorage (tab session)
       const transient = sessionStorage.getItem(SESSION_STORAGE_KEY);
       if (transient) {
         const session: AuthSession = JSON.parse(transient);
-        if (session.expiresAt > Date.now()) {
+        if (session && session.expiresAt > Date.now() && session.profile) {
           return session;
         } else {
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
         }
       }
 
-      // If no session exists yet, default to active demo farmer session so the app is instantly usable
-      const defaultSession: AuthSession = {
-        userId: DEFAULT_DEMO_ACCOUNT.id,
-        identifier: DEFAULT_DEMO_ACCOUNT.identifier,
-        rememberMe: true,
-        token: 'demo_token_' + Date.now(),
-        profile: DEFAULT_DEMO_FARMER,
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
-      };
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(defaultSession));
-      return defaultSession;
+      // Do not auto-login with hardcoded profile! Unauthenticated users must see the login page.
+      return null;
     } catch (e) {
       console.error('Error retrieving session:', e);
+      return null;
     }
-    return null;
   },
 
   /**
@@ -151,13 +102,91 @@ export const authService = {
   },
 
   /**
-   * Clear session
+   * Clear session and notify backend
    */
   clearSession() {
+    try {
+      const current = this.getCurrentSession();
+      if (current && current.token) {
+        fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${current.token}`,
+          },
+        }).catch(() => {});
+      }
+    } catch (e) {
+      // Ignore
+    }
     sessionStorage.setItem(EXPLICIT_LOGOUT_KEY, 'true');
     localStorage.removeItem(SESSION_STORAGE_KEY);
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     sessionStorage.removeItem(PENDING_ONBOARDING_KEY);
+  },
+
+  /**
+   * Send 6-digit OTP to Indian (+91) Mobile Number
+   */
+  async sendOtp(
+    phone: string
+  ): Promise<{ success: boolean; message: string; otp?: string; phone?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return {
+        success: false,
+        message: 'Failed to request OTP',
+        error: err.message || 'NETWORK_ERROR',
+      };
+    }
+  },
+
+  /**
+   * Verify OTP & create/retrieve isolated session for this user's mobile number
+   */
+  async verifyOtp(
+    phone: string,
+    otp: string,
+    name?: string,
+    district?: string,
+    village?: string
+  ): Promise<{ success: boolean; session?: AuthSession; farmer?: FarmerProfile; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp, name, district, village }),
+      });
+      const data = await res.json();
+      if (data.success && data.token && data.farmer) {
+        const session: AuthSession = {
+          userId: data.farmer.id,
+          identifier: data.farmer.mobile,
+          rememberMe: true,
+          token: data.token,
+          profile: data.farmer,
+          expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        };
+        this.setSession(session);
+        return { success: true, session, farmer: data.farmer };
+      }
+      return {
+        success: false,
+        error: data.error || 'OTP verification failed. Please enter the correct 6-digit code.',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Network error verifying OTP',
+      };
+    }
   },
 
   /**
@@ -214,12 +243,30 @@ export const authService = {
    * Quick 1-Click Demo Login
    */
   async loginAsDemo(): Promise<AuthSession> {
+    const demoProfile: FarmerProfile = {
+      id: 'farmer-demo-' + Date.now(),
+      name: 'Demonstration Farmer (மாதிரி உழவர்)',
+      mobile: '9840001234',
+      phone: '9840001234',
+      state: 'Tamil Nadu',
+      district: 'Thanjavur',
+      village: 'Thiruvaiyaru',
+      farmSizeAcres: 2.5,
+      soilType: 'Clay Loam (களிமண் கலந்த வண்டல் மண்)',
+      irrigationType: 'Borewell & Canal (ஆழ்துளை & வாய்க்கால் பாசனம்)',
+      mainCrops: ['Samba Paddy (சம்பா நெல் - CR 1009)'],
+      mainCrop: 'Samba Paddy (சம்பா நெல் - CR 1009)',
+      currentCrop: 'Samba Paddy (சம்பா நெல் - CR 1009)',
+      preferredLanguage: 'ta',
+      createdAt: new Date().toISOString().split('T')[0],
+      isVerified: true,
+    };
     const session: AuthSession = {
-      userId: DEFAULT_DEMO_ACCOUNT.id,
-      identifier: DEFAULT_DEMO_ACCOUNT.identifier,
+      userId: demoProfile.id,
+      identifier: demoProfile.mobile,
       rememberMe: true,
       token: 'jwt_demo_' + Date.now(),
-      profile: DEFAULT_DEMO_FARMER,
+      profile: demoProfile,
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
     };
     this.setSession(session);

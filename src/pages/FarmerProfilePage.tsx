@@ -85,11 +85,11 @@ export const FarmerProfilePage: React.FC<FarmerProfilePageProps> = ({ onNavigate
   const { language, setLanguage, t } = useLanguage();
   const { farmer, updateProfile, logout } = useAuth();
 
-  const [name, setName] = useState(farmer?.name || 'Ravi Kumar');
-  const [mobile, setMobile] = useState(farmer?.mobile || farmer?.phone || '9842176540');
+  const [name, setName] = useState(farmer?.name || '');
+  const [mobile, setMobile] = useState(farmer?.mobile || farmer?.phone || '');
   const [email, setEmail] = useState(farmer?.email || '');
-  const [district, setDistrict] = useState(farmer?.district || 'Thanjavur');
-  const [village, setVillage] = useState(farmer?.village || 'Thiruvaiyaru');
+  const [district, setDistrict] = useState(farmer?.district || 'Tamil Nadu');
+  const [village, setVillage] = useState(farmer?.village || '');
   const [farmSizeAcres, setFarmSizeAcres] = useState(farmer?.farmSizeAcres?.toString() || '2.5');
   const [soilType, setSoilType] = useState(farmer?.soilType || SOIL_TYPES[0].en);
   const [irrigationType, setIrrigationType] = useState(
@@ -181,7 +181,9 @@ export const FarmerProfilePage: React.FC<FarmerProfilePageProps> = ({ onNavigate
               </span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-black text-white">{farmer?.name || 'Ravi Kumar'}</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-white">
+              {farmer?.name || (farmer?.mobile ? `+91 ${farmer.mobile.slice(0, 5)} ${farmer.mobile.slice(5)}` : 'Farmer Profile')}
+            </h1>
 
             <p className="text-xs sm:text-sm text-emerald-100 max-w-xl">
               {language === 'ta'
@@ -190,10 +192,12 @@ export const FarmerProfilePage: React.FC<FarmerProfilePageProps> = ({ onNavigate
             </p>
 
             <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-emerald-200">
-              <span className="flex items-center gap-1">
-                <Phone className="w-3.5 h-3.5 text-amber-300" />
-                <span>{farmer?.mobile || farmer?.phone || '9842176540'}</span>
-              </span>
+              {farmer?.mobile && (
+                <span className="flex items-center gap-1 font-mono font-bold">
+                  <Phone className="w-3.5 h-3.5 text-amber-300" />
+                  <span>+91 {farmer.mobile.slice(0, 5)} {farmer.mobile.slice(5)}</span>
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-amber-300" />
                 <span>

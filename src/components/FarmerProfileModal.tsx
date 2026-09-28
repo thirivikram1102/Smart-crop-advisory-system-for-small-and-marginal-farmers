@@ -22,10 +22,10 @@ export const FarmerProfileModal: React.FC<FarmerProfileModalProps> = ({ isOpen, 
   const { language, setLanguage, t } = useLanguage();
   const { farmer, updateFarmer } = useAuth();
 
-  const [name, setName] = useState(farmer?.name || 'ரவி குமார் (Ravi Kumar)');
-  const [phone, setPhone] = useState(farmer?.phone || '+91 98421 78945');
-  const [district, setDistrict] = useState(farmer?.district || 'Thanjavur');
-  const [village, setVillage] = useState(farmer?.village || 'Thiruvaiyaru');
+  const [name, setName] = useState(farmer?.name || '');
+  const [phone, setPhone] = useState(farmer?.phone || (farmer?.mobile ? `+91 ${farmer.mobile.slice(0, 5)} ${farmer.mobile.slice(5)}` : ''));
+  const [district, setDistrict] = useState(farmer?.district || 'Tamil Nadu');
+  const [village, setVillage] = useState(farmer?.village || '');
   const [farmSize, setFarmSize] = useState(farmer?.farmSizeAcres || 2.5);
   const [soilType, setSoilType] = useState(farmer?.soilType || 'Clay Loam (களிமண் கலந்த வண்டல்)');
   const [irrigationSource, setIrrigationSource] = useState(

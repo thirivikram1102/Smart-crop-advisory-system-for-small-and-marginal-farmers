@@ -145,6 +145,92 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             </div>
           </div>
 
+          {/* Live Hosting & Production Deployment Status */}
+          <div className="bg-white border-2 border-emerald-600/30 rounded-2xl p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h4 className="font-extrabold text-stone-900 text-sm sm:text-base">
+                  {language === 'ta'
+                    ? 'நேரலை ஹோஸ்டிங் & இணையதள இணைப்பு (Live Cloud Hosting)'
+                    : 'Live Cloud Hosting & Production URLs'}
+                </h4>
+              </div>
+              <span className="text-[10px] bg-emerald-100 text-emerald-900 font-black px-2 py-0.5 rounded-full uppercase">
+                Active & Deployed
+              </span>
+            </div>
+
+            <p className="text-xs text-stone-600 mb-3">
+              {language === 'ta'
+                ? 'உங்கள் செயலி கூகிள் கிளவுட் ரன் (Google Cloud Run) தளத்தில் உலகளவில் நேரடியாக செயல்படுகிறது. விவசாயிகள் எவ்வித நிறுவுதலும் இன்றி உடனடியாக தங்கள் மொபைலில் திறக்கலாம்.'
+                : 'Your Smart Crop Advisory application is running live globally on Google Cloud Run with full high-availability.'}
+            </p>
+
+            <div className="space-y-2 bg-stone-50 p-3 rounded-xl border border-stone-200 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-stone-200">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-stone-400 block">
+                    {language === 'ta' ? 'பொது மக்கள் & விவசாயிகள் நேரலை இணைப்பு (Shared URL):' : 'Production Public URL:'}
+                  </span>
+                  <a
+                    href="https://ais-pre-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-700 font-bold hover:underline break-all"
+                  >
+                    https://ais-pre-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app
+                  </a>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText('https://ais-pre-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app');
+                    alert(language === 'ta' ? 'இணைப்பு நகலெடுக்கப்பட்டது!' : 'Production link copied to clipboard!');
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 rounded-lg shrink-0"
+                >
+                  {language === 'ta' ? 'இணைப்பை நகலெடு' : 'Copy Link'}
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-1">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-stone-400 block">
+                    {language === 'ta' ? 'டெவலப்பர் நேரலை முன்னோட்டம் (Dev URL):' : 'Development Preview URL:'}
+                  </span>
+                  <a
+                    href="https://ais-dev-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-700 font-bold hover:underline break-all"
+                  >
+                    https://ais-dev-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app
+                  </a>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText('https://ais-dev-uuxjyxvakkyexju2vhj7gq-758296358394.asia-southeast1.run.app');
+                    alert(language === 'ta' ? 'டெவ் இணைப்பு நகலெடுக்கப்பட்டது!' : 'Dev link copied to clipboard!');
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 rounded-lg shrink-0"
+                >
+                  {language === 'ta' ? 'நகலெடு' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 text-[11px] text-stone-500 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                {language === 'ta'
+                  ? 'சொந்த இணையப் பெயரை (Custom Domain எ.கா. www.tncropadvisory.in) இணைக்க HOSTING.md வழிகாட்டியைப் பார்க்கவும்.'
+                  : 'To link your own custom domain (e.g. www.tncropadvisory.in), point a CNAME to this Cloud Run URL.'}
+              </span>
+            </div>
+          </div>
+
           {/* Outbreak Trigger Architecture Explanation */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />

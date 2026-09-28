@@ -95,14 +95,23 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-3 sm:px-6 py-6 sm:py-10">
       <div className="w-full max-w-md">
-        {/* Top Floating Language Switcher */}
-        <div className="flex justify-end mb-3">
+        {/* Top Floating Bar: Back Button in Left Corner & Language Switcher */}
+        <div className="flex justify-between items-center mb-3">
+          <button
+            onClick={() => onNavigate('login')}
+            className="inline-flex items-center gap-2 text-xs sm:text-sm font-black px-4 py-2 bg-white hover:bg-stone-50 text-stone-800 rounded-full border border-stone-300 shadow-sm transition-all hover:scale-105 active:scale-95 group"
+            title={language === 'ta' ? 'உள்நுழைவுக்கு பின்செல்' : 'Back to Login'}
+          >
+            <ArrowLeft className="w-4 h-4 text-emerald-700 group-hover:-translate-x-0.5 transition-transform" />
+            <span>{language === 'ta' ? '← உள்நுழைவுக்கு பின்செல்' : '← Back to Login'}</span>
+          </button>
+
           <button
             onClick={() => setLanguage(language === 'ta' ? 'en' : 'ta')}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 rounded-full border border-stone-200 shadow-2xs transition-colors"
           >
             <Globe className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{language === 'ta' ? 'English' : 'தமிழ் மொழிக்கு மாற்றுக'}</span>
+            <span>{language === 'ta' ? 'English' : 'தமிழ் பதிப்பு'}</span>
           </button>
         </div>
 
@@ -110,6 +119,16 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
         <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-emerald-800 to-emerald-700 text-white p-6 sm:p-7 text-center relative">
+            {/* Prominent Back Button in Left Side Corner of Card */}
+            <button
+              onClick={() => onNavigate('login')}
+              className="absolute top-3.5 left-3.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-black/35 hover:bg-black/50 text-white backdrop-blur-md border border-white/30 flex items-center gap-1.5 text-xs font-black transition-all z-20 shadow-md active:scale-95"
+              title={language === 'ta' ? 'உள்நுழைவுக்கு பின்செல்' : 'Back to Login'}
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-4 h-4 text-amber-300" />
+              <span>{language === 'ta' ? 'பின்செல்' : 'Back'}</span>
+            </button>
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-600/60 border border-emerald-400/30 text-emerald-100 shadow-inner mb-2.5">
               <KeyRound className="w-6 h-6 text-emerald-200" />
             </div>

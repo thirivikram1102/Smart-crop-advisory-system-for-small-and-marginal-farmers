@@ -21,6 +21,8 @@ import {
   LogIn,
   LogOut,
   Globe,
+  Crosshair,
+  MapPin,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -83,6 +85,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.nav.cropManagement,
       icon: CalendarCheck2,
       badge: null,
+    },
+    {
+      id: 'location-tracker',
+      label: language === 'ta' ? 'கள GPS அமைவிடம்' : 'Field GPS Tracker',
+      icon: Crosshair,
+      badge: 'GPS',
+      badgeColor: 'bg-emerald-600 text-white',
     },
     {
       id: 'profit-prediction',
@@ -172,12 +181,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="flex items-center gap-2.5 text-left min-w-0 flex-1 hover:opacity-80 transition-opacity"
             >
               <div className="w-9 h-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
-                {farmer.name ? farmer.name[0].toUpperCase() : 'F'}
+                {farmer.name ? farmer.name[0].toUpperCase() : '🌾'}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-black text-stone-900 truncate">{farmer.name}</p>
+                <p className="text-xs font-black text-stone-900 truncate">
+                  {farmer.name || (farmer.mobile ? `+91 ${farmer.mobile.slice(0, 5)}` : 'Farmer Account')}
+                </p>
                 <p className="text-[10px] text-stone-500 truncate">
-                  {farmer.district} • {farmer.farmSizeAcres || 2} Ac
+                  {farmer.district || 'Tamil Nadu'} • {farmer.farmSizeAcres || 2.5} Ac
                 </p>
               </div>
             </button>

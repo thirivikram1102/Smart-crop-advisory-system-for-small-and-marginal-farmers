@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { FarmerProfile, FarmerOnboardingData } from '../types';
-import { authService, AuthSession, DEFAULT_DEMO_FARMER } from '../services/authService';
+import { authService, AuthSession } from '../services/authService';
 
 interface AuthContextType {
   farmer: FarmerProfile | null;
@@ -9,6 +9,8 @@ interface AuthContextType {
   isLoading: boolean;
   pendingUserId: string | null;
   setPendingUserId: (id: string | null) => void;
+  sendOtp: (phone: string) => Promise<{ success: boolean; message: string; otp?: string; phone?: string; error?: string }>;
+  verifyOtp: (phone: string, otp: string, name?: string, district?: string, village?: string) => Promise<{ success: boolean; error?: string }>;
   login: (identifier: string, pass: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   loginAsDemo: () => Promise<boolean>;
   signUp: (identifier: string, pass: string) => Promise<{ success: boolean; userId?: string; error?: string }>;
@@ -45,6 +47,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setFarmer(null);
     }
   }, [session]);
+
+  const sendOtp = async (
+    phone: string
+  ): Promise<{ success: boolean; message: string; otp?: string; phone?: string; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await authService.sendOtp(phone);
+      return res;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyOtp = async (
+    phone: string,
+    otp: string,
+    name?: string,
+    district?: string,
+    village?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await authService.verifyOtp(phone, otp, name, district, village);
+      if (res.success && res.session) {
+        setSession(res.session);
+        setFarmer(res.session.profile);
+        return { success: true };
+      }
+      return { success: false, error: res.error };
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (
     identifier: string,
@@ -193,6 +228,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         pendingUserId,
         setPendingUserId,
+        sendOtp,
+        verifyOtp,
         login,
         loginAsDemo,
         signUp,

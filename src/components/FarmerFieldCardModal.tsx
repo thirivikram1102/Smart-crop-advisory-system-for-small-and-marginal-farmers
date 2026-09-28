@@ -93,14 +93,18 @@ export const FarmerFieldCardModal: React.FC<FarmerFieldCardModalProps> = ({ isOp
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-xl border border-stone-200 text-xs">
             <div>
               <span className="text-[10px] text-stone-400 font-bold block uppercase">{language === 'ta' ? 'விவசாயி பெயர்' : 'Farmer Name'}</span>
-              <span className="font-extrabold text-stone-900 text-sm">{farmer?.name || 'ரவி குமார்'}</span>
-              <span className="text-[10px] text-stone-500 block">{farmer?.mobile || '9842176540'}</span>
+              <span className="font-extrabold text-stone-900 text-sm">
+                {farmer?.name || (farmer?.mobile ? `+91 ${farmer.mobile.slice(0, 5)}` : 'Farmer')}
+              </span>
+              {farmer?.mobile && (
+                <span className="text-[10px] text-stone-500 block font-mono">+91 {farmer.mobile.slice(0, 5)} {farmer.mobile.slice(5)}</span>
+              )}
             </div>
 
             <div>
               <span className="text-[10px] text-stone-400 font-bold block uppercase">{language === 'ta' ? 'கிராமம் & மாவட்டம்' : 'Village & District'}</span>
-              <span className="font-extrabold text-stone-900">{farmer?.village || 'திருவையாறு'}</span>
-              <span className="text-[10px] text-stone-500 block">{farmer?.district || 'தஞ்சாவூர்'}</span>
+              <span className="font-extrabold text-stone-900">{farmer?.village || farmer?.district || 'Tamil Nadu'}</span>
+              <span className="text-[10px] text-stone-500 block">{farmer?.district || 'Tamil Nadu'}</span>
             </div>
 
             <div>

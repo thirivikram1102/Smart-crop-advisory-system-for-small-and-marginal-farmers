@@ -117,31 +117,445 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// --- 2. Auth Endpoints ---
-app.post('/api/auth/login', (req, res) => {
-  const { mobileOrEmail } = req.body;
-  res.json({
+// --- 2. Secure Indian Mobile Number (+91) OTP & User Accounts Registry ---
+interface ServerFarmerProfile {
+  id: string;
+  name: string;
+  mobile: string;
+  phone: string;
+  email?: string;
+  state: string;
+  district: string;
+  village: string;
+  farmSizeAcres: number;
+  soilType: string;
+  irrigationType: string;
+  irrigationSource?: string;
+  mainCrops: string[];
+  mainCrop?: string;
+  currentCrop?: string;
+  preferredLanguage: 'ta' | 'en';
+  createdAt: string;
+  isVerified: boolean;
+}
+
+// In-memory database of registered farmers (keyed strictly by unique 10-digit mobile number)
+const farmerUsers = new Map<string, ServerFarmerProfile>();
+// Active OTP store: phone -> { otp, expiresAt }
+const activeOtps = new Map<string, { otp: string; expiresAt: number }>();
+// Active sessions: token -> { phone, createdAt }
+const activeSessions = new Map<string, { phone: string; createdAt: number }>();
+
+function normalizeIndianPhone(input: string): string {
+  if (!input) return '';
+  const digits = input.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits.slice(2);
+  }
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return digits.slice(1);
+  }
+  return digits;
+}
+
+// 2.1 Send OTP endpoint (supports Indian mobile numbers +91)
+app.post('/api/auth/send-otp', (req, res) => {
+  const { phone } = req.body || {};
+  const normalized = normalizeIndianPhone(phone || '');
+
+  if (!/^[6-9]\d{9}$/.test(normalized)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Please enter a valid 10-digit Indian mobile number (+91)',
+    });
+  }
+
+  // Generate secure 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes validity
+
+  activeOtps.set(normalized, { otp, expiresAt });
+
+  return res.json({
     success: true,
-    token: 'mock-jwt-farmer-' + Date.now(),
-    farmer: {
-      id: 'farmer-01',
-      name: 'Ravi Kumar (ரவி குமார்)',
-      mobile: mobileOrEmail || '9842176540',
-      district: 'Thanjavur',
-      village: 'Thiruvaiyaru',
-      farmSizeAcres: 2.5,
-      mainCrops: ['Paddy', 'Blackgram'],
-    },
+    message: `OTP sent to +91 ${normalized.slice(0, 5)} ${normalized.slice(5)}`,
+    phone: normalized,
+    otp, // returned for live simulation banner so users can instantly verify without carrier fees
+    expiresInSeconds: 300,
   });
 });
 
-app.post('/api/auth/register', (req, res) => {
-  const profile = req.body;
-  res.json({
+// 2.2 Verify OTP endpoint
+app.post('/api/auth/verify-otp', (req, res) => {
+  const { phone, otp, name, district, village } = req.body || {};
+  const normalized = normalizeIndianPhone(phone || '');
+  const enteredOtp = (otp || '').toString().trim();
+
+  if (!/^[6-9]\d{9}$/.test(normalized)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid mobile number format. Please enter a valid 10-digit Indian phone number.',
+    });
+  }
+
+  const storedOtpData = activeOtps.get(normalized);
+  const isValidOtp = !!(storedOtpData && storedOtpData.otp === enteredOtp && storedOtpData.expiresAt > Date.now());
+
+  if (!isValidOtp) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid or expired OTP. Please enter the correct 6-digit code received on your phone.',
+    });
+  }
+
+  // Clear used OTP to prevent replay attacks
+  activeOtps.delete(normalized);
+
+  // Each user has their OWN separate account. Never display another user's name or personal info!
+  let farmer = farmerUsers.get(normalized);
+  const formattedDisplayPhone = `+91 ${normalized.slice(0, 5)} ${normalized.slice(5)}`;
+  
+  if (!farmer) {
+    farmer = {
+      id: `farmer-${normalized}`,
+      name: name && name.trim() ? name.trim() : `Farmer (${formattedDisplayPhone})`,
+      mobile: normalized,
+      phone: normalized,
+      state: 'Tamil Nadu',
+      district: district && district.trim() ? district.trim() : 'Tamil Nadu',
+      village: village && village.trim() ? village.trim() : '',
+      farmSizeAcres: 2.5,
+      soilType: 'Clay Loam (களிமண் கலந்த வண்டல் மண்)',
+      irrigationType: 'Borewell & Canal (ஆழ்துளை & வாய்க்கால் பாசனம்)',
+      irrigationSource: 'Borewell & Canal (ஆழ்துளை & வாய்க்கால் பாசனம்)',
+      mainCrops: ['Samba Paddy (சம்பா நெல் - CR 1009)'],
+      mainCrop: 'Samba Paddy (சம்பா நெல் - CR 1009)',
+      currentCrop: 'Samba Paddy (சம்பா நெல் - CR 1009)',
+      preferredLanguage: 'ta',
+      createdAt: new Date().toISOString().split('T')[0],
+      isVerified: true,
+    };
+    farmerUsers.set(normalized, farmer);
+  } else {
+    // Update name or district if provided by returning user
+    if (name && name.trim()) {
+      farmer.name = name.trim();
+    }
+    if (district && district.trim()) {
+      farmer.district = district.trim();
+    }
+    if (village && village.trim()) {
+      farmer.village = village.trim();
+    }
+  }
+
+  // Generate secure session token
+  const token = `agri-token-${normalized}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  activeSessions.set(token, { phone: normalized, createdAt: Date.now() });
+
+  return res.json({
     success: true,
-    message: 'Farmer registered successfully',
-    farmer: { ...profile, id: 'farmer-' + Date.now() },
+    message: 'OTP verified successfully',
+    token,
+    farmer,
   });
+});
+
+// 2.3 Logout endpoint
+app.post('/api/auth/logout', (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (token) {
+    activeSessions.delete(token);
+  }
+  return res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// User-scoped irrigation state store
+const userIrrigationState = new Map<string, {
+  isPumpOn: boolean;
+  mode: 'auto' | 'manual';
+  soilMoisturePct: number;
+  waterDepthCm: number;
+  lastIrrigated: string;
+}>();
+
+// User-scoped crop management tasks & notes
+const userCropTasks = new Map<string, {
+  stages: Array<{ id: string; nameEn: string; nameTa: string; status: 'completed' | 'current' | 'upcoming'; days: string }>;
+  tasks: Array<{ id: string; textTa: string; textEn: string; done: boolean; category: string }>;
+  notes: Array<{ id: string; date: string; text: string }>;
+}>();
+
+// Helper to get session phone from request
+function getSessionPhone(req: express.Request): string | null {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+  const sess = activeSessions.get(token);
+  return sess ? sess.phone : null;
+}
+
+// 2.4 Smart Irrigation State Endpoints
+app.get('/api/irrigation/state', (req, res) => {
+  const phone = getSessionPhone(req);
+  const key = phone || 'default';
+  let state = userIrrigationState.get(key);
+  if (!state) {
+    state = {
+      isPumpOn: false,
+      mode: 'auto',
+      soilMoisturePct: 72,
+      waterDepthCm: 2.5,
+      lastIrrigated: 'Yesterday, 6:30 AM',
+    };
+    userIrrigationState.set(key, state);
+  }
+  return res.json({ success: true, data: state });
+});
+
+app.post('/api/irrigation/toggle-pump', (req, res) => {
+  const phone = getSessionPhone(req);
+  const key = phone || 'default';
+  let state = userIrrigationState.get(key) || {
+    isPumpOn: false,
+    mode: 'manual',
+    soilMoisturePct: 72,
+    waterDepthCm: 2.5,
+    lastIrrigated: 'Yesterday, 6:30 AM',
+  };
+  state.isPumpOn = !state.isPumpOn;
+  if (state.isPumpOn) {
+    state.lastIrrigated = 'Just now (Running)';
+  } else {
+    state.lastIrrigated = 'Today, ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+  userIrrigationState.set(key, state);
+  return res.json({ success: true, isPumpOn: state.isPumpOn, data: state });
+});
+
+app.post('/api/irrigation/set-mode', (req, res) => {
+  const phone = getSessionPhone(req);
+  const key = phone || 'default';
+  const { mode } = req.body || {};
+  let state = userIrrigationState.get(key) || {
+    isPumpOn: false,
+    mode: 'auto',
+    soilMoisturePct: 72,
+    waterDepthCm: 2.5,
+    lastIrrigated: 'Yesterday, 6:30 AM',
+  };
+  state.mode = mode === 'manual' ? 'manual' : 'auto';
+  userIrrigationState.set(key, state);
+  return res.json({ success: true, mode: state.mode, data: state });
+});
+
+// 2.5 Crop Management Endpoints
+app.get('/api/crop-management/data', (req, res) => {
+  const phone = getSessionPhone(req);
+  const key = phone || 'default';
+  let data = userCropTasks.get(key);
+  if (!data) {
+    data = {
+      stages: [
+        { id: '1', nameEn: 'Nursery (Day 1-25)', nameTa: 'நாற்றங்கால் (1-25 நாள்)', status: 'completed', days: '25d' },
+        { id: '2', nameEn: 'Active Tillering (Day 26-55)', nameTa: 'தூர்க்கட்டு (26-55 நாள்)', status: 'current', days: 'Day 38' },
+        { id: '3', nameEn: 'Panicle Initiation (Day 56-75)', nameTa: 'கதிர் உருவாக்கம் (56-75 நாள்)', status: 'upcoming', days: 'Day 56' },
+        { id: '4', nameEn: 'Heading (Day 76-105)', nameTa: 'மணி திரட்சி (76-105 நாள்)', status: 'upcoming', days: 'Day 80' },
+        { id: '5', nameEn: 'Harvest (Day 106-135)', nameTa: 'அறுவடை (106-135 நாள்)', status: 'upcoming', days: 'Day 125' },
+      ],
+      tasks: [
+        { id: 't1', textTa: 'கோனோ-வீடர் மூலம் களை எடுத்து வேர்களுக்கு காற்றோட்டம் கூட்டவும்', textEn: 'Run cono-weeder across SRI rows for aeration', done: true, category: 'weeding' },
+        { id: 't2', textTa: 'வயலில் 2.5 செ.மீ மெல்லிய நீர் அளவை சரிபார்க்கவும் (AWD பாசனம்)', textEn: 'Verify shallow 2.5cm standing water (AWD cycle)', done: false, category: 'water' },
+        { id: 't3', textTa: 'வேப்பம் புண்ணாக்குடன் யூரியா மேலுரம் இடவும் (தூர்க்கட்டும் பருவம்)', textEn: 'Apply Urea top-dressing mixed with Neem cake (5:1)', done: false, category: 'fertilizer' },
+        { id: 't4', textTa: 'குருத்துப்பூச்சி & இலைசுருட்டு தாக்குதல் தீவிர கண்காணிப்பு', textEn: 'Monitor yellow stem borer egg masses & leaf folder', done: false, category: 'pest' },
+      ],
+      notes: [
+        { id: 'n1', date: new Date().toLocaleDateString('en-GB'), text: 'Field checked: Soil moisture satisfactory at tillering stage.' }
+      ],
+    };
+    userCropTasks.set(key, data);
+  }
+  return res.json({ success: true, data });
+});
+
+app.post('/api/crop-management/toggle-task', (req, res) => {
+  const phone = getSessionPhone(req);
+  const key = phone || 'default';
+  const { taskId } = req.body || {};
+  let data = userCropTasks.get(key);
+  if (data) {
+    data.tasks = data.tasks.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t));
+    userCropTasks.set(key, data);
+  }
+  return res.json({ success: true, data });
+});
+
+app.post('/api/crop-management/add-note', (req, res) => {
+  const phone = getSessionPhone(req);
+  const key = phone || 'default';
+  const { text } = req.body || {};
+  if (!text || !text.trim()) {
+    return res.status(400).json({ success: false, error: 'Note text required' });
+  }
+  let data = userCropTasks.get(key);
+  if (!data) {
+    data = {
+      stages: [],
+      tasks: [],
+      notes: [],
+    };
+  }
+  const newNote = {
+    id: `note-${Date.now()}`,
+    date: new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    text: text.trim(),
+  };
+  data.notes.unshift(newNote);
+  userCropTasks.set(key, data);
+  return res.json({ success: true, note: newNote, data });
+});
+
+// 2.3 Get Current Authenticated Profile
+app.get('/api/auth/me', (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const session = activeSessions.get(token);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Session expired. Please log in again.' });
+  }
+
+  const farmer = farmerUsers.get(session.phone);
+  if (!farmer) {
+    return res.status(404).json({ success: false, error: 'Farmer profile not found' });
+  }
+
+  return res.json({
+    success: true,
+    farmer,
+  });
+});
+
+// 2.4 Update Profile
+app.put('/api/auth/profile', (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const session = activeSessions.get(token);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Session expired' });
+  }
+
+  const farmer = farmerUsers.get(session.phone);
+  if (!farmer) {
+    return res.status(404).json({ success: false, error: 'Farmer profile not found' });
+  }
+
+  const updates = req.body || {};
+  if (updates.name) farmer.name = updates.name;
+  if (updates.district) farmer.district = updates.district;
+  if (updates.village) farmer.village = updates.village;
+  if (updates.farmSizeAcres) farmer.farmSizeAcres = Number(updates.farmSizeAcres);
+  if (updates.soilType) farmer.soilType = updates.soilType;
+  if (updates.irrigationType) farmer.irrigationType = updates.irrigationType;
+  if (updates.mainCrop) {
+    farmer.mainCrop = updates.mainCrop;
+    farmer.mainCrops = [updates.mainCrop];
+  }
+  if (updates.preferredLanguage) farmer.preferredLanguage = updates.preferredLanguage;
+
+  farmerUsers.set(session.phone, farmer);
+
+  return res.json({
+    success: true,
+    farmer,
+  });
+});
+
+// 2.5 Logout endpoint
+app.post('/api/auth/logout', (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (token) {
+    activeSessions.delete(token);
+  }
+  return res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// 2.6 Backward compatible login/register
+app.post('/api/auth/login', (req, res) => {
+  const { mobileOrEmail, phone } = req.body || {};
+  const raw = phone || mobileOrEmail || '';
+  const normalized = normalizeIndianPhone(raw);
+  if (/^[6-9]\d{9}$/.test(normalized)) {
+    let farmer = farmerUsers.get(normalized);
+    if (!farmer) {
+      farmer = {
+        id: `farmer-${normalized}`,
+        name: `Farmer (+91 ${normalized.slice(0, 5)} ${normalized.slice(5)})`,
+        mobile: normalized,
+        phone: normalized,
+        state: 'Tamil Nadu',
+        district: 'Thanjavur',
+        village: 'Thiruvaiyaru',
+        farmSizeAcres: 2.5,
+        soilType: 'Clay Loam (களிமண் கலந்த வண்டல் மண்)',
+        irrigationType: 'Borewell & Canal (ஆழ்துளை & வாய்க்கால் பாசனம்)',
+        irrigationSource: 'Borewell & Canal (ஆழ்துளை & வாய்க்கால் பாசனம்)',
+        mainCrops: ['Samba Paddy (சம்பா நெல் - CR 1009)'],
+        mainCrop: 'Samba Paddy (சம்பா நெல் - CR 1009)',
+        currentCrop: 'Samba Paddy (சம்பா நெல் - CR 1009)',
+        preferredLanguage: 'ta',
+        createdAt: new Date().toISOString().split('T')[0],
+        isVerified: true,
+      };
+      farmerUsers.set(normalized, farmer);
+    }
+    const token = `agri-token-${normalized}-${Date.now()}`;
+    activeSessions.set(token, { phone: normalized, createdAt: Date.now() });
+    return res.json({ success: true, token, farmer });
+  }
+
+  return res.status(400).json({ success: false, error: 'Please enter a valid 10-digit Indian mobile number' });
+});
+
+app.post('/api/auth/register', (req, res) => {
+  const profile = req.body || {};
+  const normalized = normalizeIndianPhone(profile.mobile || '');
+  if (!/^[6-9]\d{9}$/.test(normalized)) {
+    return res.status(400).json({ success: false, error: 'Valid 10-digit mobile number required' });
+  }
+  const farmer: ServerFarmerProfile = {
+    id: `farmer-${normalized}`,
+    name: profile.name || `Farmer (+91 ${normalized.slice(0, 5)} ${normalized.slice(5)})`,
+    mobile: normalized,
+    phone: normalized,
+    state: profile.state || 'Tamil Nadu',
+    district: profile.district || 'Thanjavur',
+    village: profile.village || 'Thiruvaiyaru',
+    farmSizeAcres: Number(profile.farmSizeAcres) || 2.5,
+    soilType: profile.soilType || 'Clay Loam',
+    irrigationType: profile.irrigationType || 'Borewell',
+    mainCrops: profile.mainCrops || [profile.mainCrop || 'Paddy'],
+    mainCrop: profile.mainCrop || 'Paddy',
+    currentCrop: profile.mainCrop || 'Paddy',
+    preferredLanguage: profile.preferredLanguage || 'ta',
+    createdAt: new Date().toISOString().split('T')[0],
+    isVerified: true,
+  };
+  farmerUsers.set(normalized, farmer);
+  const token = `agri-token-${normalized}-${Date.now()}`;
+  activeSessions.set(token, { phone: normalized, createdAt: Date.now() });
+  return res.json({ success: true, token, farmer });
 });
 
 // --- 3. Crop Recommendation API ---

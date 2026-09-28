@@ -19,6 +19,7 @@ import { DiseaseAlertsPage } from './pages/DiseaseAlertsPage';
 import { IrrigationPage } from './pages/IrrigationPage';
 import { ProfitPredictionPage } from './pages/ProfitPredictionPage';
 import { CropManagementPage } from './pages/CropManagementPage';
+import { LocationTrackingPage } from './pages/LocationTrackingPage';
 import { MarketPage } from './pages/MarketPage';
 import { WeatherPage } from './pages/WeatherPage';
 
@@ -39,6 +40,7 @@ const PROTECTED_TABS = new Set([
   'irrigation',
   'profit-prediction',
   'crop-management',
+  'location-tracker',
   'yield-prediction',
   'market',
   'weather',
@@ -65,29 +67,30 @@ const AppContent: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Synchronize active tab with authentication status
+  // Requirement 3: Default unauthenticated visitors to login page, but permit navigating between Auth pages (Login, Sign Up, Landing)
   useEffect(() => {
     if (pendingUserId && activeTab !== 'onboarding') {
       setActiveTab('onboarding');
       return;
     }
 
-    if (!isAuthenticated && PROTECTED_TABS.has(activeTab)) {
+    if (!isAuthenticated && !AUTH_PAGES.has(activeTab)) {
       setProtectedNotice(
         language === 'ta'
-          ? 'இந்த விவசாய அம்சத்தைப் பயன்படுத்த தயவுசெய்து உள்நுழையவும்.'
-          : 'Please log in to access this farming feature.'
+          ? 'களப்பலகை மற்றும் விவசாய சேவைகளைப் பெற முதலில் உங்கள் மொபைல் எண்ணை உள்ளிட்டு உள்நுழையவும்.'
+          : 'Please log in with your Indian mobile number to access the farm dashboard.'
       );
       setActiveTab('login');
     }
-  }, [isAuthenticated, pendingUserId]);
+  }, [isAuthenticated, pendingUserId, activeTab, language]);
 
   const handleNavigate = (tab: string) => {
-    // If not authenticated and attempting to access a protected farming tab:
-    if (!isAuthenticated && PROTECTED_TABS.has(tab)) {
+    // If not authenticated and attempting to access a protected module:
+    if (!isAuthenticated && !AUTH_PAGES.has(tab)) {
       const notice =
         language === 'ta'
-          ? 'களப்பலகை மற்றும் விவசாய சேவைகளைப் பெற முதலில் உள்நுழையவும் அல்லது புதிய கணக்கு தொடங்கவும்.'
-          : 'Please log in or register first to access the dashboard and farming features.';
+          ? 'களப்பலகை மற்றும் விவசாய சேவைகளைப் பெற முதலில் உங்கள் மொபைல் எண்ணை உள்ளிட்டு உள்நுழையவும்.'
+          : 'Please log in with your mobile number to access the dashboard and farming features.';
       setProtectedNotice(notice);
       setActiveTab('login');
       setIsMobileSidebarOpen(false);
@@ -178,6 +181,7 @@ const AppContent: React.FC = () => {
           {activeTab === 'irrigation' && <IrrigationPage />}
           {activeTab === 'profit-prediction' && <ProfitPredictionPage />}
           {activeTab === 'crop-management' && <CropManagementPage />}
+          {activeTab === 'location-tracker' && <LocationTrackingPage />}
           {activeTab === 'market' && <MarketPage />}
           {activeTab === 'weather' && <WeatherPage />}
         </main>
