@@ -1,0 +1,188 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Validation Helpers ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['id', 'name', 'district', 'preferredLanguage'])
+        && data.keys().hasOnly([
+          'id', 'name', 'mobile', 'email', 'state', 'district', 'village',
+          'farmSizeAcres', 'soilType', 'irrigationType', 'mainCrop',
+          'preferredLanguage', 'createdAt', 'updatedAt', 'isVerified'
+        ])
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && (!('mobile' in data) || (data.mobile is string && data.mobile.size() <= 20))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 100))
+        && (!('state' in data) || (data.state is string && data.state.size() <= 50))
+        && data.district is string && data.district.size() <= 50
+        && (!('village' in data) || (data.village is string && data.village.size() <= 100))
+        && (!('farmSizeAcres' in data) || (data.farmSizeAcres is number))
+        && (!('soilType' in data) || (data.soilType is string && data.soilType.size() <= 100))
+        && (!('irrigationType' in data) || (data.irrigationType is string && data.irrigationType.size() <= 100))
+        && (!('mainCrop' in data) || (data.mainCrop is string && data.mainCrop.size() <= 100))
+        && data.preferredLanguage in ['ta', 'en']
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50))
+        && (!('isVerified' in data) || (data.isVerified is bool));
+    }
+
+    function isValidIrrigation(data) {
+      return data.keys().hasAll(['id', 'userId', 'isPumpOn', 'mode'])
+        && data.keys().hasOnly(['id', 'userId', 'isPumpOn', 'mode', 'soilMoisturePct', 'waterDepthCm', 'lastIrrigated', 'updatedAt'])
+        && data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.isPumpOn is bool
+        && data.mode in ['auto', 'manual']
+        && (!('soilMoisturePct' in data) || (data.soilMoisturePct is number))
+        && (!('waterDepthCm' in data) || (data.waterDepthCm is number))
+        && (!('lastIrrigated' in data) || (data.lastIrrigated is string && data.lastIrrigated.size() <= 100))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50));
+    }
+
+    function isValidCropTask(data) {
+      return data.keys().hasAll(['id', 'userId', 'textTa', 'textEn', 'done'])
+        && data.keys().hasOnly(['id', 'userId', 'textTa', 'textEn', 'done', 'category', 'createdAt', 'updatedAt'])
+        && data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.textTa is string && data.textTa.size() <= 300
+        && data.textEn is string && data.textEn.size() <= 300
+        && data.done is bool
+        && (!('category' in data) || (data.category is string && data.category.size() <= 50))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50));
+    }
+
+    function isValidCropNote(data) {
+      return data.keys().hasAll(['id', 'userId', 'date', 'text'])
+        && data.keys().hasOnly(['id', 'userId', 'date', 'text', 'createdAt'])
+        && data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.date is string && data.date.size() <= 50
+        && data.text is string && data.text.size() <= 1000
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50));
+    }
+
+    function isValidHarvestSchedule(data) {
+      return data.keys().hasAll(['id', 'userId', 'cropId', 'plantingDate', 'durationDays', 'expectedHarvestDate'])
+        && data.keys().hasOnly([
+          'id', 'userId', 'cropId', 'cropName', 'cropNameTa', 'variety',
+          'plantingDate', 'durationDays', 'expectedHarvestDate', 'plotName',
+          'acres', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.cropId is string && data.cropId.size() <= 64
+        && (!('cropName' in data) || (data.cropName is string && data.cropName.size() <= 100))
+        && (!('cropNameTa' in data) || (data.cropNameTa is string && data.cropNameTa.size() <= 100))
+        && (!('variety' in data) || (data.variety is string && data.variety.size() <= 100))
+        && data.plantingDate is string && data.plantingDate.size() <= 30
+        && data.durationDays is number
+        && data.expectedHarvestDate is string && data.expectedHarvestDate.size() <= 30
+        && (!('plotName' in data) || (data.plotName is string && data.plotName.size() <= 100))
+        && (!('acres' in data) || (data.acres is number))
+        && (!('status' in data) || (data.status in ['active', 'completed', 'archived']))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50));
+    }
+
+    function isValidDiseaseAlert(data) {
+      return data.keys().hasAll(['id', 'diseaseEn', 'diseaseTa', 'cropEn', 'district', 'severity'])
+        && data.keys().hasOnly([
+          'id', 'userId', 'diseaseEn', 'diseaseTa', 'cropEn', 'cropTa',
+          'district', 'village', 'severity', 'reportedDate', 'activeCasesCount',
+          'recommendationEn', 'recommendationTa', 'isVerifiedByOfficer'
+        ])
+        && data.id is string && data.id.size() <= 128
+        && (!('userId' in data) || (data.userId is string && data.userId.size() <= 128))
+        && data.diseaseEn is string && data.diseaseEn.size() <= 150
+        && data.diseaseTa is string && data.diseaseTa.size() <= 150
+        && data.cropEn is string && data.cropEn.size() <= 100
+        && (!('cropTa' in data) || (data.cropTa is string && data.cropTa.size() <= 100))
+        && data.district is string && data.district.size() <= 100
+        && (!('village' in data) || (data.village is string && data.village.size() <= 100))
+        && data.severity in ['Low', 'Moderate', 'High', 'Severe']
+        && (!('reportedDate' in data) || (data.reportedDate is string && data.reportedDate.size() <= 50))
+        && (!('activeCasesCount' in data) || (data.activeCasesCount is number))
+        && (!('recommendationEn' in data) || (data.recommendationEn is string && data.recommendationEn.size() <= 500))
+        && (!('recommendationTa' in data) || (data.recommendationTa is string && data.recommendationTa.size() <= 500))
+        && (!('isVerifiedByOfficer' in data) || (data.isVerifiedByOfficer is bool));
+    }
+
+    // --- Bootstrapped Connection Verification ---
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // --- 1. User Profiles (PII Isolated & Strictly Private) ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // Blanket enumeration forbidden
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // --- 2. Smart Irrigation Subcollection ---
+      match /irrigation/{irrigationId} {
+        allow get, list: if isOwner(userId) && isValidId(userId);
+        allow create, update: if isOwner(userId) && isValidId(userId) && isValidId(irrigationId) && isValidIrrigation(incoming());
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(irrigationId);
+      }
+
+      // --- 3. Crop Management Tasks Subcollection ---
+      match /crop_tasks/{taskId} {
+        allow get, list: if isOwner(userId) && isValidId(userId);
+        allow create, update: if isOwner(userId) && isValidId(userId) && isValidId(taskId) && isValidCropTask(incoming());
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(taskId);
+      }
+
+      // --- 4. Crop Notes Diary Subcollection ---
+      match /crop_notes/{noteId} {
+        allow get, list: if isOwner(userId) && isValidId(userId);
+        allow create, update: if isOwner(userId) && isValidId(userId) && isValidId(noteId) && isValidCropNote(incoming());
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(noteId);
+      }
+
+      // --- 5. Harvest Schedules Subcollection ---
+      match /crop_schedules/{scheduleId} {
+        allow get, list: if isOwner(userId) && isValidId(userId);
+        allow create, update: if isOwner(userId) && isValidId(userId) && isValidId(scheduleId) && isValidHarvestSchedule(incoming());
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(scheduleId);
+      }
+    }
+
+    // --- 5. Outbreak Alerts (Public Early Warning Surveillance) ---
+    match /alerts/{alertId} {
+      allow read: if true; // Public read so farmers get immediate epidemic warnings
+      allow create: if isSignedIn() && isValidId(alertId) && isValidDiseaseAlert(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(alertId) && isValidDiseaseAlert(incoming()) && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(alertId) && resource.data.userId == request.auth.uid;
+    }
+  }
+}

@@ -18,6 +18,7 @@ import {
   LogIn,
   UserPlus,
   Crosshair,
+  Compass,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -25,6 +26,7 @@ interface NavbarProps {
   setActiveTab: (tab: string) => void;
   onOpenVoiceModal: () => void;
   onOpenAdminModal: () => void;
+  onOpenDistrictsModal?: () => void;
   onToggleMobileSidebar?: () => void;
   isMobileSidebarOpen?: boolean;
   onOpenProfileModal?: () => void;
@@ -35,13 +37,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onOpenVoiceModal,
   onOpenAdminModal,
+  onOpenDistrictsModal,
   onToggleMobileSidebar,
   isMobileSidebarOpen = false,
   onOpenProfileModal,
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const { farmer, isAuthenticated, logout } = useAuth();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useAlerts();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, simulateDailyPushNotification } = useAlerts();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -132,6 +135,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Crosshair className={`w-3.5 h-3.5 ${activeTab === 'location-tracker' ? 'text-stone-950 animate-spin' : 'text-amber-300'}`} />
                 <span className="hidden md:inline">
                   {language === 'ta' ? 'GPS அமைவிடம்' : 'GPS Tracker'}
+                </span>
+              </button>
+            )}
+
+            {/* 38 Districts Directory quick button */}
+            {onOpenDistrictsModal && (
+              <button
+                onClick={onOpenDistrictsModal}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-700/80 bg-emerald-800/80 hover:bg-emerald-800 text-emerald-100 hover:border-emerald-500 min-h-[40px]"
+                title="38 Tamil Nadu Districts & Main Areas Explorer"
+                aria-label="38 Districts"
+              >
+                <Compass className="w-3.5 h-3.5 text-amber-300" />
+                <span className="hidden xl:inline">
+                  {language === 'ta' ? '38 மாவட்டங்கள்' : '38 Districts'}
                 </span>
               </button>
             )}
@@ -237,7 +255,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                         ))
                       )}
                     </div>
-                    <div className="p-2 bg-stone-50 text-center border-t border-stone-200">
+                    <div className="p-2.5 bg-stone-50 border-t border-stone-200 flex items-center justify-between gap-2 text-xs">
+                      <button
+                        onClick={() => {
+                          simulateDailyPushNotification();
+                          setShowNotifications(false);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-900 bg-amber-200/80 hover:bg-amber-300 px-2.5 py-1 rounded-lg transition-colors shadow-2xs"
+                        title="Simulate a daily push notification tip for tracked crops"
+                      >
+                        <span>⚡ {language === 'ta' ? 'புஷ் சிமுலேட் செய்' : 'Simulate Daily Tip'}</span>
+                      </button>
+
                       <button
                         onClick={() => {
                           setActiveTab('alerts');
@@ -245,7 +274,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         }}
                         className="text-xs text-emerald-700 font-bold hover:underline"
                       >
-                        {language === 'ta' ? 'அனைத்து எச்சரிக்கைகளையும் காண்க →' : 'View all alerts →'}
+                        {language === 'ta' ? 'அனைத்தும் →' : 'View all alerts →'}
                       </button>
                     </div>
                   </div>

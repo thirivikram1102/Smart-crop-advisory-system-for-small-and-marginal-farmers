@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../firebase';
 import { FarmerProfile, FarmerOnboardingData } from '../types';
 import { authService, AuthSession } from '../services/authService';
+import { firestoreService } from '../services/firestoreService';
 
 interface AuthContextType {
   farmer: FarmerProfile | null;
@@ -9,6 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   pendingUserId: string | null;
   setPendingUserId: (id: string | null) => void;
+  signInWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   sendOtp: (phone: string) => Promise<{ success: boolean; message: string; otp?: string; phone?: string; error?: string }>;
   verifyOtp: (phone: string, otp: string, name?: string, district?: string, village?: string) => Promise<{ success: boolean; error?: string }>;
   login: (identifier: string, pass: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
@@ -16,8 +20,8 @@ interface AuthContextType {
   signUp: (identifier: string, pass: string) => Promise<{ success: boolean; userId?: string; error?: string }>;
   completeOnboarding: (data: FarmerOnboardingData) => Promise<{ success: boolean; error?: string }>;
   register: (profile: Omit<FarmerProfile, 'id' | 'createdAt'>) => Promise<boolean>;
-  updateProfile: (updated: Partial<FarmerProfile>) => void;
-  updateFarmer: (updated: Partial<FarmerProfile>) => void; // Backward compatibility alias
+  updateProfile: (updated: Partial<FarmerProfile>) => Promise<void>;
+  updateFarmer: (updated: Partial<FarmerProfile>) => Promise<void>;
   requestPasswordReset: (identifier: string) => Promise<{ success: boolean; otp?: string; error?: string }>;
   resetPasswordWithOtp: (identifier: string, otp: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -36,10 +40,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [isLoading, setIsLoading] = useState(false);
   const [pendingUserId, setPendingUserId] = useState<string | null>(() => {
-    return sessionStorage.getItem('smart_crop_pending_onboarding_v2');
+    return sessionStorage.getItem('smart_crop_pending_onboarding_v4');
   });
 
-  // Keep farmer and session synchronized
+  // Real-time Firebase Auth listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // If current session does not match this firebaseUser, load or create their profile
+        if (!session || session.userId !== firebaseUser.uid) {
+          const profile = await firestoreService.getUserProfile(firebaseUser.uid);
+          if (profile) {
+            const token = await firebaseUser.getIdToken();
+            const newSession: AuthSession = {
+              userId: firebaseUser.uid,
+              identifier: firebaseUser.email || firebaseUser.uid,
+              rememberMe: true,
+              token,
+              profile,
+              expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+            };
+            setSession(newSession);
+            setFarmer(profile);
+            authService.setSession(newSession);
+          }
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [session]);
+
+  // Synchronize farmer with session
   useEffect(() => {
     if (session) {
       setFarmer(session.profile);
@@ -48,25 +80,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [session]);
 
-  const sendOtp = async (
-    phone: string
-  ): Promise<{ success: boolean; message: string; otp?: string; phone?: string; error?: string }> => {
+  const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
-      const res = await authService.sendOtp(phone);
-      return res;
+      const res = await authService.signInWithGoogle();
+      if (res.success && res.session) {
+        setSession(res.session);
+        setFarmer(res.session.profile);
+        return { success: true };
+      }
+      return { success: false, error: res.error };
     } finally {
       setIsLoading(false);
     }
   };
 
-  const verifyOtp = async (
-    phone: string,
-    otp: string,
-    name?: string,
-    district?: string,
-    village?: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  const sendOtp = async (phone: string) => {
+    setIsLoading(true);
+    try {
+      return await authService.sendOtp(phone);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyOtp = async (phone: string, otp: string, name?: string, district?: string, village?: string) => {
     setIsLoading(true);
     try {
       const res = await authService.verifyOtp(phone, otp, name, district, village);
@@ -81,11 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (
-    identifier: string,
-    pass: string,
-    rememberMe = true
-  ): Promise<{ success: boolean; error?: string }> => {
+  const login = async (identifier: string, pass: string, rememberMe = true) => {
     setIsLoading(true);
     try {
       const result = await authService.login(identifier, pass, rememberMe);
@@ -117,10 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (
-    identifier: string,
-    pass: string
-  ): Promise<{ success: boolean; userId?: string; error?: string }> => {
+  const signUp = async (identifier: string, pass: string) => {
     setIsLoading(true);
     try {
       const result = await authService.signUp(identifier, pass);
@@ -136,15 +167,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const completeOnboarding = async (
-    data: FarmerOnboardingData
-  ): Promise<{ success: boolean; error?: string }> => {
-    if (!pendingUserId) {
+  const completeOnboarding = async (data: FarmerOnboardingData) => {
+    if (!pendingUserId && !farmer?.id) {
       return { success: false, error: 'NO_PENDING_REGISTRATION' };
     }
+    const targetId = pendingUserId || farmer!.id;
     setIsLoading(true);
     try {
-      const result = await authService.completeOnboarding(pendingUserId, data);
+      const result = await authService.completeOnboarding(targetId, data);
       if (result.success && result.session) {
         setSession(result.session);
         setFarmer(result.session.profile);
@@ -159,7 +189,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Backward-compatible register method
   const register = async (profileData: Omit<FarmerProfile, 'id' | 'createdAt'>): Promise<boolean> => {
     const fakeId = profileData.mobile || 'farmer_' + Date.now();
     const result = await signUp(fakeId, 'password123');
@@ -180,10 +209,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
-  const updateProfile = (updated: Partial<FarmerProfile>) => {
+  const updateProfile = async (updated: Partial<FarmerProfile>) => {
     if (!farmer) return;
     const activeUserId = session ? session.userId : farmer.id;
-    const result = authService.updateProfile(activeUserId, updated);
+    const result = await authService.updateProfile(activeUserId, updated);
     if (result) {
       setFarmer(result);
       if (session) {
@@ -194,17 +223,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const requestPasswordReset = async (
-    identifier: string
-  ): Promise<{ success: boolean; otp?: string; error?: string }> => {
+  const requestPasswordReset = async (identifier: string) => {
     return authService.requestPasswordReset(identifier);
   };
 
-  const resetPasswordWithOtp = async (
-    identifier: string,
-    otp: string,
-    newPass: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  const resetPasswordWithOtp = async (identifier: string, otp: string, newPass: string) => {
     return authService.resetPassword(identifier, otp, newPass);
   };
 
@@ -228,6 +251,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         pendingUserId,
         setPendingUserId,
+        signInWithGoogle,
         sendOtp,
         verifyOtp,
         login,
@@ -236,7 +260,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         completeOnboarding,
         register,
         updateProfile,
-        updateFarmer: updateProfile, // backward compatible alias
+        updateFarmer: updateProfile,
         requestPasswordReset,
         resetPasswordWithOtp,
         logout,

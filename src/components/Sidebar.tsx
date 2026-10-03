@@ -23,6 +23,7 @@ import {
   Globe,
   Crosshair,
   MapPin,
+  Compass,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,6 +34,7 @@ interface SidebarProps {
   onOpenVoiceModal?: () => void;
   onOpenAdminModal?: () => void;
   onOpenProfileModal?: () => void;
+  onOpenDistrictsModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -43,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenVoiceModal,
   onOpenAdminModal,
   onOpenProfileModal,
+  onOpenDistrictsModal,
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const { farmer, isAuthenticated, logout } = useAuth();
@@ -118,6 +121,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'தமிழ் AI',
       badgeColor: 'bg-amber-400 text-stone-950 font-bold',
       action: onOpenVoiceModal,
+    },
+    {
+      id: 'districts',
+      label: language === 'ta' ? '38 மாவட்டங்கள் & பகுதிகள்' : '38 TN Districts & Areas',
+      icon: Compass,
+      badge: '38',
+      badgeColor: 'bg-emerald-600 text-white font-bold',
+      action: onOpenDistrictsModal,
     },
     {
       id: 'profile',

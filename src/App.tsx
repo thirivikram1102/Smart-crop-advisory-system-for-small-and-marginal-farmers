@@ -10,6 +10,8 @@ import { FooterDisclaimer } from './components/FooterDisclaimer';
 import { TamilVoiceAssistantModal } from './components/TamilVoiceAssistantModal';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
 import { FarmerProfileModal } from './components/FarmerProfileModal';
+import { DistrictsExplorerModal } from './components/DistrictsExplorerModal';
+import { PushNotificationToastBanner } from './components/PushNotificationToastBanner';
 
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -64,6 +66,7 @@ const AppContent: React.FC = () => {
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isDistrictsModalOpen, setIsDistrictsModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Synchronize active tab with authentication status
@@ -115,6 +118,7 @@ const AppContent: React.FC = () => {
         onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
         onOpenAdminModal={() => setIsAdminModalOpen(true)}
         onOpenProfileModal={() => setIsProfileModalOpen(true)}
+        onOpenDistrictsModal={() => setIsDistrictsModalOpen(true)}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
         isMobileSidebarOpen={isMobileSidebarOpen}
         activeTab={activeTab}
@@ -133,6 +137,7 @@ const AppContent: React.FC = () => {
             onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
             onOpenAdminModal={() => setIsAdminModalOpen(true)}
             onOpenProfileModal={() => setIsProfileModalOpen(true)}
+            onOpenDistrictsModal={() => setIsDistrictsModalOpen(true)}
           />
         )}
 
@@ -234,6 +239,14 @@ const AppContent: React.FC = () => {
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
       />
+
+      <DistrictsExplorerModal
+        isOpen={isDistrictsModalOpen}
+        onClose={() => setIsDistrictsModalOpen(false)}
+      />
+
+      {/* Floating Push Notification Toast Banner */}
+      <PushNotificationToastBanner onNavigateToAlerts={() => setActiveTab('alerts')} />
     </div>
   );
 };

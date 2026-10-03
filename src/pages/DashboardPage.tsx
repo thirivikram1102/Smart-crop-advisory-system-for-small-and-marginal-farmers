@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlerts } from '../contexts/AlertsContext';
 import { QuickActionBanner } from '../components/QuickActionBanner';
 import { FarmerFieldCardModal } from '../components/FarmerFieldCardModal';
 import { DEMO_WEATHER } from '../services/marketWeatherService';
+import { calculateHarvestSchedule, HarvestScheduleRecord } from '../services/harvestService';
 import {
   CloudSun,
   Sprout,
@@ -44,6 +45,8 @@ import {
   KNOWN_AGRI_FACILITIES,
   ACTIVE_OUTBREAK_LOCATIONS,
 } from '../services/locationService';
+import { firestoreService } from '../services/firestoreService';
+import { DistrictsExplorerModal } from '../components/DistrictsExplorerModal';
 
 interface DashboardPageProps {
   onNavigate: (tabId: string) => void;
@@ -56,9 +59,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   const { language, t } = useLanguage();
   const { farmer, logout } = useAuth();
-  const { alerts } = useAlerts();
+  const { alerts, simulateDailyPushNotification } = useAlerts();
 
   const [isFieldCardOpen, setIsFieldCardOpen] = useState(false);
+  const [isDistrictsModalOpen, setIsDistrictsModalOpen] = useState(false);
   const [selectedCropStage, setSelectedCropStage] = useState<'basal' | 'tillering' | 'panicle' | 'heading'>('tillering');
 
   // --- Smart Irrigation State & Remote Controls ---
@@ -75,6 +79,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [cropTasks, setCropTasks] = useState([
     {
       id: 't1',
+      userId: farmer?.id || 'demo',
       textTa: 'கோனோ-வீடர் மூலம் களை எடுத்து வேர்களுக்கு காற்றோட்டம் கூட்டவும்',
       textEn: 'Run cono-weeder across SRI rows for soil aeration',
       done: true,
@@ -82,6 +87,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     },
     {
       id: 't2',
+      userId: farmer?.id || 'demo',
       textTa: 'வயலில் 2.5 செ.மீ மெல்லிய நீர் அளவை சரிபார்க்கவும் (AWD பாசனம்)',
       textEn: 'Verify shallow 2.5cm standing water depth (AWD cycle)',
       done: false,
@@ -89,6 +95,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     },
     {
       id: 't3',
+      userId: farmer?.id || 'demo',
       textTa: 'வேப்பம் புண்ணாக்குடன் யூரியா மேலுரம் இடவும் (தூர்க்கட்டும் பருவம்)',
       textEn: 'Apply Urea top-dressing mixed with Neem cake (5:1 ratio)',
       done: false,
@@ -96,6 +103,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     },
     {
       id: 't4',
+      userId: farmer?.id || 'demo',
       textTa: 'குருத்துப்பூச்சி & இலைசுருட்டு தாக்குதல் தீவிர கண்காணிப்பு',
       textEn: 'Monitor yellow stem borer egg masses & leaf folder',
       done: false,
@@ -109,44 +117,152 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   ]);
   const [newNoteInput, setNewNoteInput] = useState('');
 
-  // Toggle Pump function
+  // Active Harvest Schedule Tracker state
+  const [activeHarvestSchedule, setActiveHarvestSchedule] = useState<HarvestScheduleRecord | null>(() => {
+    try {
+      const saved = localStorage.getItem(`crop_schedules_${farmer?.id || 'demo'}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+      }
+    } catch {
+      // fallback
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (!farmer?.id) return;
+    const unsub = firestoreService.subscribeHarvestSchedules(farmer.id, (records) => {
+      if (records && records.length > 0) {
+        setActiveHarvestSchedule(records[0]);
+      }
+    });
+    return () => unsub();
+  }, [farmer?.id]);
+
+  const harvestCalc = useMemo(() => {
+    if (!activeHarvestSchedule) {
+      const d = new Date();
+      d.setDate(d.getDate() - 38);
+      return calculateHarvestSchedule(d.toISOString().split('T')[0], 135, 'paddy-samba');
+    }
+    return calculateHarvestSchedule(
+      activeHarvestSchedule.plantingDate,
+      activeHarvestSchedule.durationDays,
+      activeHarvestSchedule.cropId
+    );
+  }, [activeHarvestSchedule]);
+
+  // Sync Smart Irrigation state with Cloud Firestore per user
+  useEffect(() => {
+    if (!farmer?.id) return;
+    const unsubscribe = firestoreService.subscribeIrrigationState(farmer.id, (state) => {
+      if (state) {
+        setIsPumpOn(state.isPumpOn);
+        setIrrigationMode(state.mode);
+        if (typeof state.soilMoisturePct === 'number') setSoilMoisture(state.soilMoisturePct);
+        if (typeof state.waterDepthCm === 'number') setWaterDepthCm(state.waterDepthCm);
+        if (state.lastIrrigated) setLastWateredTime(state.lastIrrigated);
+      }
+    });
+    return () => unsubscribe();
+  }, [farmer?.id]);
+
+  // Sync Crop Tasks with Cloud Firestore per user
+  useEffect(() => {
+    if (!farmer?.id) return;
+    const unsubscribe = firestoreService.subscribeCropTasks(farmer.id, (tasks) => {
+      if (tasks && tasks.length > 0) {
+        setCropTasks(tasks);
+      }
+    });
+    return () => unsubscribe();
+  }, [farmer?.id]);
+
+  // Sync Crop Notes with Cloud Firestore per user
+  useEffect(() => {
+    if (!farmer?.id) return;
+    const unsubscribe = firestoreService.subscribeCropNotes(farmer.id, (notes) => {
+      if (notes && notes.length > 0) {
+        setActivityNotes(notes.map((n) => `${n.date}: ${n.text}`));
+      }
+    });
+    return () => unsubscribe();
+  }, [farmer?.id]);
+
+  // Toggle Pump function with Firestore persistence
   const handleTogglePump = () => {
     const newState = !isPumpOn;
     setIsPumpOn(newState);
+    const newTime = newState
+      ? (language === 'ta' ? 'தற்போது இயங்குகிறது...' : 'Running now...')
+      : (language === 'ta'
+          ? `இன்று ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+          : `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+    setLastWateredTime(newTime);
+
     if (newState) {
-      setLastWateredTime(language === 'ta' ? 'தற்போது இயங்குகிறது...' : 'Running now...');
       setIrrigationNotice(
         language === 'ta'
           ? 'மோட்டார் பாசனம் இயக்கப்பட்டது. வயல் நீர்மட்டம் கண்காணிக்கப்படுகிறது.'
           : 'Motor pump activated. Monitoring water depth.'
       );
     } else {
-      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setLastWateredTime(language === 'ta' ? `இன்று ${nowStr}` : `Today, ${nowStr}`);
       setIrrigationNotice(
         language === 'ta'
           ? 'மோட்டார் நிறுத்தப்பட்டது. தேவையான நீர் மட்டம் எட்டப்பட்டது.'
           : 'Pump shut off. Required AWD depth reached.'
       );
     }
+
+    if (farmer?.id) {
+      firestoreService.saveIrrigationState(farmer.id, {
+        isPumpOn: newState,
+        mode: irrigationMode,
+        soilMoisturePct: soilMoisture,
+        waterDepthCm,
+        lastIrrigated: newTime,
+      });
+    }
+
     // Auto clear feedback notice after 4 seconds
     setTimeout(() => setIrrigationNotice(null), 4000);
   };
 
-  // Toggle task completion
+  // Toggle task completion with Firestore persistence
   const handleToggleTask = (id: string) => {
-    setCropTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
+    const updated = cropTasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+    setCropTasks(updated);
+
+    if (farmer?.id) {
+      const task = updated.find((t) => t.id === id);
+      if (task) {
+        firestoreService.saveCropTask(farmer.id, {
+          ...task,
+          userId: farmer.id,
+        });
+      }
+    }
   };
 
-  // Add quick activity note
+  // Add quick activity note with Firestore persistence
   const handleAddActivityNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNoteInput.trim()) return;
     const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-    setActivityNotes((prev) => [`${dateStr}: ${newNoteInput.trim()}`, ...prev]);
+    const noteText = newNoteInput.trim();
+    setActivityNotes((prev) => [`${dateStr}: ${noteText}`, ...prev]);
     setNewNoteInput('');
+
+    if (farmer?.id) {
+      firestoreService.addCropNote(farmer.id, {
+        id: `note_${Date.now()}`,
+        userId: farmer.id,
+        date: dateStr,
+        text: noteText,
+      });
+    }
   };
 
   const nearbyAlert = alerts[0];
@@ -400,8 +516,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
+              onClick={() => setIsDistrictsModalOpen(true)}
+              className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border border-emerald-500/50 shadow-xs transition-colors"
+            >
+              <Compass className="w-4 h-4 text-amber-300" />
+              <span>{language === 'ta' ? '38 மாவட்டங்கள் & பகுதிகள்' : '38 Districts & Areas'}</span>
+            </button>
+
+            <button
               onClick={() => setIsFieldCardOpen(true)}
-              className="inline-flex items-center gap-2 bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-emerald-600/50 shadow-xs transition-colors"
+              className="inline-flex items-center gap-2 bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border border-emerald-600/50 shadow-xs transition-colors"
             >
               <Printer className="w-4 h-4 text-emerald-300" />
               <span>{language === 'ta' ? 'பயிர் அட்டை (Field Card)' : 'View Field Card'}</span>
@@ -542,7 +666,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <span>{t.dashboard.currentCropTitle}</span>
             </span>
             <span className="text-xs text-emerald-700 font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
-              <span>{language === 'ta' ? 'மேலாண்மை' : 'Manage'}</span>
+              <span>{language === 'ta' ? 'அறுவடை அட்டவணை' : 'Harvest Tracker'}</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </span>
           </div>
@@ -550,23 +674,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="flex items-start justify-between">
             <div>
               <div className="text-base font-extrabold text-stone-900 leading-tight">
-                {farmer?.mainCrop || (language === 'ta' ? 'சம்பா நெல் (CR 1009 / பொன்னி)' : 'Samba Paddy (CR 1009)')}
+                {activeHarvestSchedule
+                  ? (language === 'ta' ? activeHarvestSchedule.cropNameTa : activeHarvestSchedule.cropName)
+                  : farmer?.mainCrop || (language === 'ta' ? 'சம்பா நெல் (CR 1009 / பொன்னி)' : 'Samba Paddy (CR 1009)')}
               </div>
               <div className="inline-block mt-1 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs px-2 py-0.5 rounded-md font-semibold">
-                {language === 'ta' ? 'பருவம்: தூர்க்கட்டும் பருவம் (Tillering)' : 'Stage: Active Tillering'}
+                {language === 'ta'
+                  ? `பருவம்: ${harvestCalc.currentStageNameTa}`
+                  : `Stage: ${harvestCalc.currentStageNameEn}`}
               </div>
             </div>
-            <span className="text-2xl font-black text-emerald-700">38d</span>
+            <span className="text-2xl font-black text-emerald-700">{harvestCalc.daysElapsed}d</span>
           </div>
 
           <div className="mt-3.5 space-y-1.5 text-xs text-stone-600">
             <div className="flex justify-between">
               <span>{language === 'ta' ? 'விதைத்த நாள்' : 'Sowing Date'}:</span>
-              <b className="text-stone-800">06-Aug-2026</b>
+              <b className="text-stone-800">{harvestCalc.plantingDate}</b>
             </div>
             <div className="flex justify-between">
               <span>{language === 'ta' ? 'எதிர்பார்க்கப்படும் அறுவடை' : 'Est. Harvest'}:</span>
-              <b className="text-stone-800">18-Nov-2026 (~75 days left)</b>
+              <b className="text-stone-800">
+                {harvestCalc.expectedHarvestDate}{' '}
+                <span className="text-emerald-700 font-bold">
+                  (~{harvestCalc.daysRemaining} {language === 'ta' ? 'நாட்கள்' : 'days left'})
+                </span>
+              </b>
             </div>
           </div>
         </div>
@@ -598,6 +731,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <p className="text-xs text-stone-700 mt-2 bg-red-50 p-2 rounded-xl border border-red-100 line-clamp-2">
               {language === 'ta' ? nearbyAlert?.recommendationTa : nearbyAlert?.recommendationEn}
             </p>
+
+            <div className="mt-3 pt-2.5 border-t border-red-100 flex items-center justify-between text-[11px]">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  simulateDailyPushNotification();
+                }}
+                className="inline-flex items-center gap-1 bg-amber-100 hover:bg-amber-200 text-stone-900 font-extrabold px-2.5 py-1 rounded-md transition-colors"
+                title="Simulate daily crop disease prevention tip push notification"
+              >
+                <span>⚡ {language === 'ta' ? 'புஷ் சிமுலேட்' : 'Simulate Push Tip'}</span>
+              </button>
+              <span className="text-red-700 font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
+                <span>{language === 'ta' ? 'அறிக்கைகள்' : 'View all'} →</span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -757,6 +907,48 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <span className="block text-[10px] text-emerald-600">{language === 'ta' ? 'அளவீடு செய்த பரப்பு' : 'Boundary Area'}</span>
                 <span className="font-bold text-emerald-900">{fieldBoundary.acres} ac ({fieldBoundary.cents}ct)</span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 8: 38 Tamil Nadu Districts & Main Areas Explorer */}
+        <div
+          onClick={() => setIsDistrictsModalOpen(true)}
+          className="bg-white p-5 rounded-2xl border border-stone-200 shadow-2xs hover:shadow-md transition-all cursor-pointer group bg-gradient-to-b from-white to-amber-50/25"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-extrabold text-sm text-stone-900 flex items-center gap-2">
+              <Compass className="w-4 h-4 text-amber-600" />
+              <span>{language === 'ta' ? '38 மாவட்டங்கள் & பகுதிகள்' : '38 TN Districts & Areas'}</span>
+            </span>
+            <span className="text-xs text-amber-700 font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
+              <span>{language === 'ta' ? 'ஆராய்க' : 'Explore'}</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </span>
+          </div>
+
+          <div className="flex items-baseline justify-between">
+            <div>
+              <div className="text-2xl font-black text-emerald-800">38</div>
+              <div className="text-[11px] text-stone-500 font-medium">
+                {language === 'ta' ? 'தமிழ்நாடு மாவட்டங்கள்' : 'Tamil Nadu Districts'}
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                {farmer?.district || 'Thanjavur'}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-stone-100 text-xs">
+            <div className="bg-stone-50 p-1.5 rounded-lg text-stone-600">
+              <span className="block text-[10px] text-stone-400">{language === 'ta' ? 'மண்டலங்கள்' : 'Agri Zones'}</span>
+              <span className="font-bold text-stone-800">7 Zones</span>
+            </div>
+            <div className="bg-amber-50 p-1.5 rounded-lg text-amber-800">
+              <span className="block text-[10px] text-amber-600">{language === 'ta' ? 'வட்டங்கள் & சந்தைகள்' : 'Taluks & Mandis'}</span>
+              <span className="font-bold text-amber-900">280+ Hubs</span>
             </div>
           </div>
         </div>
@@ -1473,6 +1665,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       <FarmerFieldCardModal
         isOpen={isFieldCardOpen}
         onClose={() => setIsFieldCardOpen(false)}
+      />
+
+      {/* 38 Districts & Main Areas Explorer Modal */}
+      <DistrictsExplorerModal
+        isOpen={isDistrictsModalOpen}
+        onClose={() => setIsDistrictsModalOpen(false)}
       />
     </div>
   );

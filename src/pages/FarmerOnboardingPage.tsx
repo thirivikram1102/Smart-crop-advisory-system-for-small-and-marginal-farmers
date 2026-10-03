@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { FarmerOnboardingData, Language } from '../types';
+import { TN_38_DISTRICTS } from '../services/districtsData';
 import {
   Sprout,
   User,
@@ -15,36 +16,20 @@ import {
   CheckCircle2,
   AlertCircle,
   Globe,
+  Compass,
 } from 'lucide-react';
 
 interface FarmerOnboardingPageProps {
   onComplete: () => void;
 }
 
-const TN_DISTRICTS = [
-  { en: 'Thanjavur', ta: 'தஞ்சாவூர்' },
-  { en: 'Tiruvarur', ta: 'திருவாரூர்' },
-  { en: 'Nagapattinam', ta: 'நாகப்பட்டினம்' },
-  { en: 'Mayiladuthurai', ta: 'மயிலாடுதுறை' },
-  { en: 'Tiruchirappalli', ta: 'திருச்சிராப்பள்ளி' },
-  { en: 'Madurai', ta: 'மதுரை' },
-  { en: 'Coimbatore', ta: 'கோயம்புத்தூர்' },
-  { en: 'Erode', ta: 'ஈரோடு' },
-  { en: 'Salem', ta: 'சேலம்' },
-  { en: 'Cuddalore', ta: 'கடலூர்' },
-  { en: 'Tirunelveli', ta: 'திருநெல்வேலி' },
-  { en: 'Villupuram', ta: 'விழுப்புரம்' },
-  { en: 'Dindigul', ta: 'திண்டுக்கல்' },
-  { en: 'Virudhunagar', ta: 'விருதுநகர்' },
-  { en: 'Theni', ta: 'தேனி' },
-  { en: 'Pudukkottai', ta: 'புதுக்கோட்டை' },
-  { en: 'Dharmapuri', ta: 'தருமபுரி' },
-  { en: 'Krishnagiri', ta: 'கிருஷ்ணகிரி' },
-  { en: 'Vellore', ta: 'வேலூர்' },
-  { en: 'Kanchipuram', ta: 'காஞ்சிபுரம்' },
-  { en: 'Tiruvannamalai', ta: 'திருவண்ணாமலை' },
-  { en: 'Ramanathapuram', ta: 'ராமநாதபுரம்' },
-];
+const TN_DISTRICTS = TN_38_DISTRICTS.map((d) => ({
+  en: d.en,
+  ta: d.ta,
+  zoneEn: d.zoneEn,
+  zoneTa: d.zoneTa,
+  mainAreas: d.mainAreas,
+}));
 
 const SOIL_TYPES = [
   { en: 'Clay Loam (களிமண் கலந்த வண்டல் மண்)', ta: 'களிமண் கலந்த வண்டல் மண் (Clay Loam)' },
@@ -236,28 +221,40 @@ export const FarmerOnboardingPage: React.FC<FarmerOnboardingPageProps> = ({ onCo
 
               {/* District */}
               <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>{auth.districtLabel || 'District in Tamil Nadu'}</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>{auth.districtLabel || 'District in Tamil Nadu'} (38 Districts)</span>
+                  </label>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    {language === 'ta' ? 'அனைத்து 38 மாவட்டங்கள்' : 'All 38 Districts'}
+                  </span>
+                </div>
                 <select
                   value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
+                  onChange={(e) => {
+                    const newDist = e.target.value;
+                    setDistrict(newDist);
+                    const found = TN_DISTRICTS.find((d) => d.en === newDist);
+                    if (found && found.mainAreas && found.mainAreas[0]) {
+                      setVillage(language === 'ta' ? found.mainAreas[0].ta : found.mainAreas[0].en);
+                    }
+                  }}
                   className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-sm font-medium focus:border-emerald-600 focus:outline-none"
                 >
                   {TN_DISTRICTS.map((d) => (
                     <option key={d.en} value={d.en}>
-                      {language === 'ta' ? `${d.ta} (${d.en})` : d.en}
+                      {language === 'ta' ? `${d.ta} (${d.en}) - ${d.zoneTa}` : `${d.en} (${d.ta}) - ${d.zoneEn}`}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Village */}
+              {/* Village / Main Area */}
               <div>
                 <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>{auth.villageLabel || 'Village / Taluk'}</span>
+                  <Compass className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>{auth.villageLabel || 'Village / Taluk / Main Area'}</span>
                   <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -273,6 +270,45 @@ export const FarmerOnboardingPage: React.FC<FarmerOnboardingPageProps> = ({ onCo
                   }`}
                 />
                 {errors.village && <p className="mt-1 text-[11px] text-rose-600 font-semibold">{errors.village}</p>}
+
+                {/* Main Areas / Taluks Quick Selector for selected district */}
+                {(() => {
+                  const currentDist = TN_DISTRICTS.find((d) => d.en === district);
+                  if (!currentDist || !currentDist.mainAreas || currentDist.mainAreas.length === 0) return null;
+                  return (
+                    <div className="mt-2 p-2.5 bg-stone-50 rounded-xl border border-stone-200 space-y-1.5">
+                      <span className="text-[10px] text-stone-600 font-bold block uppercase tracking-wider">
+                        {language === 'ta'
+                          ? `${currentDist.ta} முக்கிய வட்டங்கள் & வேளாண் மையங்கள்:`
+                          : `Main Areas & Taluks in ${currentDist.en}:`}
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                        {currentDist.mainAreas.map((area, idx) => {
+                          const areaName = language === 'ta' ? area.ta : area.en;
+                          const isPicked = village === areaName;
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setVillage(areaName);
+                                if (errors.village) setErrors((prev) => ({ ...prev, village: '' }));
+                              }}
+                              className={`text-[11px] px-2.5 py-0.5 rounded-full border transition-all ${
+                                isPicked
+                                  ? 'bg-emerald-700 text-white border-emerald-700 font-bold shadow-2xs'
+                                  : 'bg-white text-stone-700 border-stone-300 hover:border-emerald-400 hover:bg-emerald-50/50'
+                              }`}
+                            >
+                              <span>{areaName}</span>
+                              <span className="text-[9px] opacity-75 ml-1">({area.type})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Farm Size */}

@@ -12,6 +12,7 @@ import {
   Building,
   CheckCircle2,
 } from 'lucide-react';
+import { PushNotificationSimulatorCard } from '../components/PushNotificationSimulatorCard';
 
 export const DiseaseAlertsPage: React.FC = () => {
   const { language, t } = useLanguage();
@@ -94,6 +95,9 @@ export const DiseaseAlertsPage: React.FC = () => {
           <span>{t.alerts.reportOutbreak}</span>
         </button>
       </div>
+
+      {/* Push-Notification Simulation Card for Tracked Crops */}
+      <PushNotificationSimulatorCard />
 
       {/* New Outbreak Form (Toggleable) */}
       {showReportForm && (

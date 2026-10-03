@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "Farmer user profile with location and farming details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "mobile": { "type": "string", "maxLength": 20 },
+        "email": { "type": "string", "maxLength": 100 },
+        "state": { "type": "string", "maxLength": 50 },
+        "district": { "type": "string", "maxLength": 50 },
+        "village": { "type": "string", "maxLength": 100 },
+        "farmSizeAcres": { "type": "number" },
+        "soilType": { "type": "string", "maxLength": 100 },
+        "irrigationType": { "type": "string", "maxLength": 100 },
+        "mainCrop": { "type": "string", "maxLength": 100 },
+        "preferredLanguage": { "type": "string", "enum": ["ta", "en"] },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 },
+        "isVerified": { "type": "boolean" }
+      },
+      "required": ["id", "name", "district", "preferredLanguage"]
+    },
+    "irrigationState": {
+      "title": "IrrigationState",
+      "description": "Smart irrigation sensor state and pump control for a farmer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "isPumpOn": { "type": "boolean" },
+        "mode": { "type": "string", "enum": ["auto", "manual"] },
+        "soilMoisturePct": { "type": "number" },
+        "waterDepthCm": { "type": "number" },
+        "lastIrrigated": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "isPumpOn", "mode"]
+    },
+    "cropTask": {
+      "title": "CropTask",
+      "description": "Farmer agronomic schedule tasks and stage activities",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "textTa": { "type": "string", "maxLength": 300 },
+        "textEn": { "type": "string", "maxLength": 300 },
+        "done": { "type": "boolean" },
+        "category": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "textTa", "textEn", "done"]
+    },
+    "cropNote": {
+      "title": "CropNote",
+      "description": "Farmer field observation diary notes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 50 },
+        "text": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "date", "text"]
+    },
+    "diseaseAlert": {
+      "title": "DiseaseAlert",
+      "description": "Community crop disease outbreak alerts for agricultural surveillance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "diseaseEn": { "type": "string", "maxLength": 150 },
+        "diseaseTa": { "type": "string", "maxLength": 150 },
+        "cropEn": { "type": "string", "maxLength": 100 },
+        "cropTa": { "type": "string", "maxLength": 100 },
+        "district": { "type": "string", "maxLength": 100 },
+        "village": { "type": "string", "maxLength": 100 },
+        "severity": { "type": "string", "enum": ["Low", "Moderate", "High", "Severe"] },
+        "reportedDate": { "type": "string", "maxLength": 50 },
+        "activeCasesCount": { "type": "number" },
+        "recommendationEn": { "type": "string", "maxLength": 500 },
+        "recommendationTa": { "type": "string", "maxLength": 500 },
+        "isVerifiedByOfficer": { "type": "boolean" }
+      },
+      "required": ["id", "diseaseEn", "diseaseTa", "cropEn", "district", "severity"]
+    },
+    "harvestSchedule": {
+      "title": "HarvestSchedule",
+      "description": "Farmer crop planting record with calculated harvest timeline and status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "cropId": { "type": "string", "maxLength": 64 },
+        "cropName": { "type": "string", "maxLength": 100 },
+        "cropNameTa": { "type": "string", "maxLength": 100 },
+        "variety": { "type": "string", "maxLength": 100 },
+        "plantingDate": { "type": "string", "maxLength": 30 },
+        "durationDays": { "type": "number" },
+        "expectedHarvestDate": { "type": "string", "maxLength": 30 },
+        "plotName": { "type": "string", "maxLength": 100 },
+        "acres": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "completed", "archived"] },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "cropId", "plantingDate", "durationDays", "expectedHarvestDate"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "Farmer profile details, isolated strictly to the authenticated user"
+    },
+    "/users/{userId}/irrigation/{irrigationId}": {
+      "schema": "irrigationState",
+      "description": "Subcollection storing the farmer's smart irrigation state and remote switch settings"
+    },
+    "/users/{userId}/crop_tasks/{taskId}": {
+      "schema": "cropTask",
+      "description": "Subcollection storing the farmer's seasonal tasks and SRI milestones"
+    },
+    "/users/{userId}/crop_notes/{noteId}": {
+      "schema": "cropNote",
+      "description": "Subcollection storing the farmer's farm diary and field observations"
+    },
+    "/users/{userId}/crop_schedules/{scheduleId}": {
+      "schema": "harvestSchedule",
+      "description": "Subcollection storing farmer's crop planting dates and harvest schedules"
+    },
+    "/alerts/{alertId}": {
+      "schema": "diseaseAlert",
+      "description": "Public community crop disease outbreak surveillance alerts"
+    }
+  }
+}
